@@ -86,12 +86,12 @@ impl Monitor {
                 game_data.clone(),
             ));
 
-            loop {
+            let ret = loop {
                 #[rustfmt::skip]
                 tokio::select! {
                     // If capture task exits, continue to non-capturing state.
-                    _ = &mut capture_join_handle => {
-                        break;
+                    ret = &mut capture_join_handle => {
+                        break ret;
                     },
 
                     // Forward data updated state to app state.
@@ -111,6 +111,18 @@ impl Monitor {
                         }
                     }
                 }
+            };
+
+            let ret = match ret {
+                Ok(ret) => ret,
+                Err(e) => {
+                    tracing::error!("Join error on capture task: {e}");
+                    continue;
+                }
+            };
+
+            if let Err(e) = ret {
+                tracing::error!("Capture task terminated with error: {e}");
             }
         }
     }

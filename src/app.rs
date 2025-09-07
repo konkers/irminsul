@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use anyhow::Result;
 use egui::{
-    Button, Context, DragValue, Id, Modal, PointerButton, RichText, Sense, ViewportCommand,
+    Button, Color32, Context, DragValue, Id, Modal, PointerButton, RichText, Sense, ViewportCommand,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot, watch};
@@ -15,6 +15,8 @@ use crate::{AppState, ConfirmationType, Message, State};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SavedAppState {
     export_settings: ExportSettings,
+    #[serde(default)]
+    auto_start_capture: bool,
 }
 
 impl Default for SavedAppState {
@@ -35,6 +37,7 @@ impl Default for SavedAppState {
                 min_weapon_ascension: 0,
                 min_weapon_rarity: 3,
             },
+            auto_start_capture: false,
         }
     }
 }
@@ -42,6 +45,8 @@ impl Default for SavedAppState {
 pub struct IrminsulApp {
     ui_message_tx: mpsc::UnboundedSender<Message>,
     state_rx: watch::Receiver<AppState>,
+
+    capture_settings_open: bool,
 
     optimizer_settings_open: bool,
     optimizer_export_open: bool,
@@ -83,7 +88,7 @@ impl IrminsulApp {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         egui_material_icons::initialize(&cc.egui_ctx);
 
-        let saved_state = if let Some(storage) = cc.storage {
+        let saved_state: SavedAppState = if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
             Default::default()
@@ -91,9 +96,16 @@ impl IrminsulApp {
 
         let (ui_message_tx, state_rx) = start_async_runtime(cc.egui_ctx.clone());
 
+        if saved_state.auto_start_capture {
+            if let Err(e) = ui_message_tx.send(Message::StartCapture) {
+                tracing::error!("Failed to send auto start message: {e}");
+            }
+        }
+
         Self {
             saved_state,
             ui_message_tx,
+            capture_settings_open: false,
             optimizer_settings_open: false,
             optimizer_export_open: false,
             optimizer_export_rx: None,
@@ -211,6 +223,15 @@ impl IrminsulApp {
     }
 
     fn main_ui(&mut self, ui: &mut egui::Ui, app_state: &AppState) {
+        if self.capture_settings_open {
+            let modal = Modal::new(Id::new("Capture Settings")).show(ui.ctx(), |ui| {
+                self.capture_settings_modal(ui);
+            });
+            if modal.should_close() {
+                self.capture_settings_open = false;
+            }
+        }
+
         if self.optimizer_settings_open {
             let modal = Modal::new(Id::new("Optimizer Settings")).show(ui.ctx(), |ui| {
                 self.optimizer_settings_modal(ui);
@@ -235,26 +256,53 @@ impl IrminsulApp {
     }
 
     fn capture_ui(&mut self, ui: &mut egui::Ui, app_state: &AppState) {
-        Self::section_header(ui, "Packet Capture");
-        if app_state.capturing {
-            if ui.button("Stop Capture").clicked() {
-                let _ = self.ui_message_tx.send(Message::StopCapture);
-            }
-        } else if ui.button("Start Capture").clicked() {
-            let _ = self.ui_message_tx.send(Message::StartCapture);
-        }
-        ui.label("Data Last Seen".to_string());
-        ui.horizontal(|ui| {
-            ui.add_space(20.);
-            egui::Grid::new("capture_stats")
-                .striped(false)
-                .num_columns(2)
-                .show(ui, |ui| {
-                    Self::data_state(ui, "Items", app_state.updated.items_updated);
-                    Self::data_state(ui, "Characters", app_state.updated.characters_updated);
-                    Self::data_state(ui, "Achievements", app_state.updated.achievements_updated);
-                })
+        ui.vertical(|ui| {
+            egui::Sides::new().show(
+                ui,
+                |ui| {
+                    Self::section_header(ui, "Packet Capture");
+                },
+                |ui| {
+                    if ui
+                        .button(egui_material_icons::icons::ICON_SETTINGS)
+                        .clicked()
+                    {
+                        self.capture_settings_open = true;
+                    }
+
+                    if app_state.capturing {
+                        if ui.button(egui_material_icons::icons::ICON_PAUSE).clicked() {
+                            let _ = self.ui_message_tx.send(Message::StopCapture);
+                        }
+                    } else if ui
+                        .button(egui_material_icons::icons::ICON_PLAY_ARROW)
+                        .clicked()
+                    {
+                        let _ = self.ui_message_tx.send(Message::StartCapture);
+                    }
+                },
+            );
         });
+        egui::Grid::new("capture_stats")
+            .striped(false)
+            .num_columns(2)
+            .min_col_width(0.)
+            .show(ui, |ui| {
+                Self::data_state(ui, "Items", app_state.updated.items_updated);
+                Self::data_state(ui, "Characters", app_state.updated.characters_updated);
+                Self::data_state(ui, "Achievements", app_state.updated.achievements_updated);
+            });
+    }
+
+    fn data_state(ui: &mut egui::Ui, source: &str, last_updated: Option<Instant>) {
+        let updated_icon = match last_updated {
+            Some(_) => RichText::new(egui_material_icons::icons::ICON_CHECK_CIRCLE)
+                .color(Color32::from_hex("#00ab3f").unwrap()),
+            None => RichText::new(egui_material_icons::icons::ICON_CHECK_INDETERMINATE_SMALL),
+        };
+        ui.label(updated_icon);
+        ui.label(source);
+        ui.end_row();
     }
 
     fn genshin_optimizer_ui(&mut self, ui: &mut egui::Ui, app_state: &AppState) {
@@ -271,24 +319,48 @@ impl IrminsulApp {
                     {
                         self.optimizer_settings_open = true;
                     }
-                },
-            );
-            ui.add_enabled_ui(
-                app_state.updated.characters_updated.is_some()
-                    && app_state.updated.items_updated.is_some(),
-                |ui| {
-                    if ui.button("Export").clicked() {
-                        let (tx, rx) = oneshot::channel();
-                        let _ = self.ui_message_tx.send(Message::ExportGenshinOptimizer(
-                            self.saved_state.export_settings.clone(),
-                            tx,
-                        ));
-                        self.optimizer_export_open = true;
-                        self.optimizer_export_rx = Some(rx);
-                    }
+
+                    ui.add_enabled_ui(
+                        app_state.updated.characters_updated.is_some()
+                            && app_state.updated.items_updated.is_some(),
+                        |ui| {
+                            if ui
+                                .button(egui_material_icons::icons::ICON_CONTENT_PASTE_GO)
+                                .clicked()
+                            {
+                                let (tx, rx) = oneshot::channel();
+                                let _ = self.ui_message_tx.send(Message::ExportGenshinOptimizer(
+                                    self.saved_state.export_settings.clone(),
+                                    tx,
+                                ));
+                                self.optimizer_export_open = true;
+                                self.optimizer_export_rx = Some(rx);
+                            }
+                        },
+                    );
                 },
             );
         });
+    }
+
+    fn capture_settings_modal(&mut self, ui: &mut egui::Ui) {
+        ui.set_width(300.0);
+        ui.heading("Genshin Optimizer Settings");
+        ui.separator();
+        ui.checkbox(
+            &mut self.saved_state.auto_start_capture,
+            "Start capture on app launch",
+        );
+        ui.separator();
+        egui::Sides::new().show(
+            ui,
+            |_ui| {},
+            |ui| {
+                if ui.button("Ok").clicked() {
+                    ui.close()
+                }
+            },
+        );
     }
 
     fn optimizer_settings_modal(&mut self, ui: &mut egui::Ui) {
@@ -435,6 +507,10 @@ impl IrminsulApp {
             ui,
             |_ui| {},
             |ui| {
+                if ui.button("Close").clicked() {
+                    ui.close()
+                }
+
                 if let Some(json) = json {
                     if ui.button("Copy to Clipboard").clicked() {
                         if let Err(e) =
@@ -444,9 +520,6 @@ impl IrminsulApp {
                         }
                         ui.close()
                     }
-                }
-                if ui.button("Close").clicked() {
-                    ui.close()
                 }
             },
         );
@@ -459,18 +532,5 @@ impl IrminsulApp {
 
     fn section_header(ui: &mut egui::Ui, name: &str) {
         ui.label(RichText::new(name).size(18.));
-    }
-
-    fn data_state(ui: &mut egui::Ui, source: &str, last_updated: Option<Instant>) {
-        let updated_text = match last_updated {
-            Some(timestamp) => {
-                let delta = Instant::now() - timestamp;
-                format!("{}m", delta.as_secs() / 60)
-            }
-            None => "-".to_string(),
-        };
-        ui.label(source);
-        ui.label(updated_text);
-        ui.end_row();
     }
 }

@@ -26,7 +26,7 @@ impl Display for CaptureError {
         if matches!(self, CaptureError::ChannelClosed) {
             write!(f, "Channel closed")
         } else {
-            write!(f, "{}", self.source().unwrap())
+            write!(f, "{:?}", self.source())
         }
     }
 }
