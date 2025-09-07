@@ -1,0 +1,70 @@
+name: Create Release
+on:
+  workflow_dispatch:
+    inputs:
+      nextVersion:
+        description: "Release Version"
+        required: true
+        default: "0.0.0"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo install toml-cli
+
+      - name: Update Cargo.toml with new version
+        # piping the output of toml-cli directly into the file will cause the file to be deleted before being read
+        # by toml-cli. excuse this workaround.
+        run: |
+          toml set Cargo.toml package.version ${{inputs.nextVersion}} > Cargo.toml.new
+          rm Cargo.toml
+          mv Cargo.toml.tmp Cargo.toml
+          cargo generate-lockfile
+      - run: cargo build --release
+      - name: Push updated version
+        run: |
+          git config user.name "irminsul bot"
+          git config user.email "irminsul.bot@users.noreply.github.com"
+          git add Cargo.toml
+          git add Cargo.lock
+          git commit -m "[skip ci] bump version to ${{inputs.nextVersion}}"
+          git push origin main
+      - uses: actions/upload-artifact@v4
+        with:
+          name: irminsul
+          path: target/release/irminsul.exe
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [build-windows]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: iriminsul
+          path: ./
+      - name: Create and push version tag
+        run: |
+          git tag v${{inputs.nextVersion}}
+          git push origin --tags
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{inputs.nextVersion}}
+          name: "v${{inputs.nextVersion}}"
+          artifacts: "irminsul.exe"
