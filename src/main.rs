@@ -85,12 +85,13 @@ fn main() -> eframe::Result {
     #[cfg(windows)]
     admin::ensure_admin();
 
+    let background_image_size = [1600., 1000.];
+
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([400.0, 400.0])
+            .with_inner_size(background_image_size.map(|v| v * 0.5))
             .with_resizable(false)
-            // TODO: explore having our own decorations.
-            // .with_decorations(false)
+            .with_decorations(false)
             .with_icon(
                 // NOTE: Adding an icon is optional
                 eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])

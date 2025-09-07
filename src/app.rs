@@ -2,7 +2,9 @@ use std::thread;
 use std::time::Instant;
 
 use anyhow::Result;
-use egui::{Context, DragValue, Id, Modal, RichText};
+use egui::{
+    Button, Context, DragValue, Id, Modal, PointerButton, RichText, Sense, ViewportCommand,
+};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -78,6 +80,7 @@ pub fn start_async_runtime(
 
 impl IrminsulApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        egui_extras::install_image_loaders(&cc.egui_ctx);
         egui_material_icons::initialize(&cc.egui_ctx);
 
         let saved_state = if let Some(storage) = cc.storage {
@@ -109,18 +112,30 @@ impl eframe::App for IrminsulApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let state = self.state_rx.borrow_and_update().clone();
-            match state.state {
-                State::Starting => (),
-                State::CheckingForData => self.checking_for_data_ui(ui),
-                State::WaitingForDownloadConfirmation(confirmation_type) => {
-                    self.waiting_for_download_confirmation_ui(ui, confirmation_type)
-                }
-                State::Downloading => self.load_data_ui(ui),
-                State::Main => self.main_ui(ui, &state),
-            }
+            ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                egui::Image::new(egui::include_image!("../assets/background.webp"))
+                    .paint_at(ui, ui.ctx().screen_rect());
+            });
 
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+            ui.vertical(|ui| {
+                self.title_bar(ui);
+                ui.add_space(25.);
+                ui.horizontal(|ui| {
+                    ui.add_space(525.);
+                    let state = self.state_rx.borrow_and_update().clone();
+                    ui.vertical(|ui| match state.state {
+                        State::Starting => (),
+                        State::CheckingForData => self.checking_for_data_ui(ui),
+                        State::WaitingForDownloadConfirmation(confirmation_type) => {
+                            self.waiting_for_download_confirmation_ui(ui, confirmation_type)
+                        }
+                        State::Downloading => self.load_data_ui(ui),
+                        State::Main => self.main_ui(ui, &state),
+                    });
+                });
+            });
+
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
                 egui::warn_if_debug_build(ui);
             });
         });
@@ -128,6 +143,43 @@ impl eframe::App for IrminsulApp {
 }
 
 impl IrminsulApp {
+    fn title_bar(&self, ui: &mut egui::Ui) {
+        let (_, button_width) = egui::Sides::new().show(
+            ui,
+            |_ui| {},
+            |ui| {
+                let button = ui.add(
+                    Button::new(RichText::new(egui_material_icons::icons::ICON_CLOSE).size(24.))
+                        .frame(false),
+                );
+                if button.clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                button.rect.width()
+            },
+        );
+
+        let app_rect = ui.max_rect();
+
+        let title_bar_height = 32.0;
+        let title_bar_rect = {
+            let mut rect = app_rect;
+            rect.max.y = rect.min.y + title_bar_height;
+            rect.max.x -= button_width;
+            rect
+        };
+
+        let response = ui.interact(
+            title_bar_rect,
+            Id::new("title_bar"),
+            Sense::click_and_drag(),
+        );
+
+        if response.drag_started_by(PointerButton::Primary) {
+            ui.ctx().send_viewport_cmd(ViewportCommand::StartDrag);
+        }
+    }
+
     fn checking_for_data_ui(&self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("Checking for data and updates".to_string());
@@ -195,9 +247,8 @@ impl IrminsulApp {
         ui.horizontal(|ui| {
             ui.add_space(20.);
             egui::Grid::new("capture_stats")
-                .striped(true)
-                .min_col_width(100.)
-                .num_columns(3)
+                .striped(false)
+                .num_columns(2)
                 .show(ui, |ui| {
                     Self::data_state(ui, "Items", app_state.updated.items_updated);
                     Self::data_state(ui, "Characters", app_state.updated.characters_updated);
@@ -418,6 +469,8 @@ impl IrminsulApp {
             }
             None => "-".to_string(),
         };
-        ui.label(format!("{source}: {updated_text}"));
+        ui.label(source);
+        ui.label(updated_text);
+        ui.end_row();
     }
 }
