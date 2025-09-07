@@ -10,14 +10,25 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    runs-on: windows-latest
-
+  test_matrix:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: ${{ github.event.repository.name }}.exe
+            suffix: ".exe"
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - run: rustup component add clippy
-      - run: cargo check
+      - run: cargo check --release
       - run: cargo fmt --check
-      - run: cargo test
-      - run: cargo clippy
+      - run: cargo test --release
+      - run: cargo clippy --release
       - run: cargo build --release
+      - if: ${{matrix.artifact_name}}
+        name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: target/release/irminsul${{ matrix.suffix }}
