@@ -57,6 +57,9 @@ opt-level = 2 # fast and small wasm
 [profile.dev.package."*"]
 opt-level = 2
 
+[build-dependencies]
+winresource = "0.1.23"
+
 # Uncomment for local debugging
 # [patch."https://github.com/konkers/anime-game-data"]
 # anime-game-data = { path = "../anime-game-data" }
