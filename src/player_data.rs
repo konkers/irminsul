@@ -186,7 +186,12 @@ impl<'a> PlayerData<'a> {
                     .into_iter()
                     .map(|(property, value)| good::Substat {
                         key: property.good_name().to_string(),
-                        value,
+                        // The game rounds percentages to 0.1 and non percentages to whole numbers.
+                        value: if property.is_percentage() {
+                            (value * 10.).round() / 10.
+                        } else {
+                            value.round()
+                        },
                     })
                     .collect();
 
