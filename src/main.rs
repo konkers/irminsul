@@ -87,8 +87,8 @@ fn main() -> eframe::Result {
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([600.0, 600.0])
-            .with_resizable(true)
+            .with_inner_size([400.0, 400.0])
+            .with_resizable(false)
             // TODO: explore having our own decorations.
             // .with_decorations(false)
             .with_icon(
@@ -96,6 +96,7 @@ fn main() -> eframe::Result {
                 eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
                     .expect("Failed to load icon"),
             ),
+        persist_window: false,
         ..Default::default()
     };
     eframe::run_native(
