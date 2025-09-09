@@ -349,7 +349,7 @@ impl IrminsulApp {
         ui.separator();
         ui.checkbox(
             &mut self.saved_state.auto_start_capture,
-            "Start capture on app launch",
+            "Start capture on Irminsul launch",
         );
         ui.separator();
         egui::Sides::new().show(
