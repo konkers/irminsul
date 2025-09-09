@@ -96,7 +96,7 @@ impl<'a> PlayerData<'a> {
         }
 
         let json = serde_json::to_string(&good)?;
-        tracing::info!("{json}");
+        tracing::trace!("{json}");
         Ok(json)
     }
 
