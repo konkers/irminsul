@@ -15,7 +15,7 @@ below.
 - [x] Export filter settings.
 - [ ] Handle data updates after initial game start.
 - [ ] Detect game session ending and new sessions beginning.
-- [ ] Auto-updated mechanism.
+- [x] Auto-updated mechanism.
 - [ ] Log exporting for bug reporting
 - [ ] Export achievements
 - [ ] Export pull history
