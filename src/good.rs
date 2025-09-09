@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Substat {
     pub key: String,
-    pub value: f64,
+    pub value: f32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

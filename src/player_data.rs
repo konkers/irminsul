@@ -176,12 +176,12 @@ impl<'a> PlayerData<'a> {
                 }
                 let artifact_data = self.game_data.get_artifact(item.item_id).ok()?;
                 let artifact = equip.reliquary();
-                let mut substats: IndexMap<Property, f64> = IndexMap::new();
+                let mut substats: IndexMap<Property, f32> = IndexMap::new();
                 for substat_id in &artifact.append_prop_id_list {
                     let Some(substat) = self.game_data.get_affix(*substat_id).ok() else {
                         continue;
                     };
-                    *substats.entry(substat.property).or_default() += substat.value;
+                    *substats.entry(substat.property).or_default() += substat.value as f32;
                 }
                 let substats = substats
                     .into_iter()
