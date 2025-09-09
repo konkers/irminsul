@@ -10,15 +10,7 @@ use tokio::sync::{mpsc, watch};
 
 use crate::{AppState, Message, State};
 
-// TODO: break this giant function up.
-pub async fn check_for_app_update(
-    state_tx: &watch::Sender<AppState>,
-    ui_message_rx: &mut mpsc::UnboundedReceiver<Message>,
-) -> Result<()> {
-    let mut app_state = state_tx.borrow().clone();
-    app_state.state = State::CheckingForUpdate;
-    state_tx.send(app_state.clone()).unwrap();
-
+pub fn check_for_new_version() -> Result<Option<Release>> {
     // This needs to be outside of an async context otherwise it panics.
     let releases = thread::spawn(move || -> Result<Vec<Release>> {
         let releases = self_update::backends::github::ReleaseList::configure()
@@ -34,14 +26,13 @@ pub async fn check_for_app_update(
         .context("error fetching releases")?;
 
     // Assume the first release is the latest.
-    let release = &releases[0];
-    let asset = releases[0].asset_for("", None).unwrap();
+    let release = releases[0].clone();
     if release.version == self_update::cargo_crate_version!() {
         tracing::info!(
             "{} is current, continuing with app startup",
             release.version
         );
-        return Ok(());
+        return Ok(None);
     }
 
     tracing::info!(
@@ -50,30 +41,19 @@ pub async fn check_for_app_update(
         release.version
     );
 
-    // Notify user of update and ask for acknowledgement.
-    app_state.state = State::WaitingForUpdateConfirmation(release.version.clone());
-    state_tx.send(app_state.clone()).unwrap();
+    Ok(Some(release))
+}
 
-    // Wait acknowledgment.
-    loop {
-        match ui_message_rx.recv().await {
-            Some(Message::UpdateAcknowledged) => break,
-            Some(Message::UpdateCanceled) => return Ok(()),
-            _ => (),
-        };
-    }
-
-    app_state.state = State::Updating;
-    state_tx.send(app_state.clone()).unwrap();
-
+async fn download_new_version_and_replace_current(release: Release) -> Result<()> {
+    let asset = release.asset_for("", None).unwrap();
     tracing::info!("asset: {asset:#?}");
+
     let tmp_dir = tempfile::Builder::new()
         .prefix("self_update")
         .tempdir_in(::std::env::current_dir()?)?;
     let tmp_exe_path = tmp_dir.path().join(&asset.name);
     let mut tmp_exe = ::std::fs::File::create(&tmp_exe_path)?;
 
-    tracing::info!("fetching artifact info {}", asset.download_url);
     let client = reqwest::Client::builder().gzip(true).build()?;
 
     #[derive(Deserialize)]
@@ -81,6 +61,7 @@ pub async fn check_for_app_update(
         browser_download_url: String,
     }
 
+    tracing::info!("fetching artifact info {}", asset.download_url);
     let metadata: DownloadMetadata = client
         .get(&asset.download_url)
         .header(header::USER_AGENT, "rust-reqwest/self-update")
@@ -111,8 +92,39 @@ pub async fn check_for_app_update(
     tracing::info!("replacing current exe");
     self_update::self_replace::self_replace(tmp_exe_path)?;
 
-    // Deletes the tempdir
-    drop(tmp_dir);
+    Ok(())
+}
+
+pub async fn check_for_app_update(
+    state_tx: &watch::Sender<AppState>,
+    ui_message_rx: &mut mpsc::UnboundedReceiver<Message>,
+) -> Result<()> {
+    let mut app_state = state_tx.borrow().clone();
+    app_state.state = State::CheckingForUpdate;
+    state_tx.send(app_state.clone()).unwrap();
+
+    let Some(release) = check_for_new_version()? else {
+        // No new version.
+        return Ok(());
+    };
+
+    // Notify user of update and ask for acknowledgement.
+    app_state.state = State::WaitingForUpdateConfirmation(release.version.clone());
+    state_tx.send(app_state.clone()).unwrap();
+
+    // Wait acknowledgment.
+    loop {
+        match ui_message_rx.recv().await {
+            Some(Message::UpdateAcknowledged) => break,
+            Some(Message::UpdateCanceled) => return Ok(()),
+            _ => (),
+        };
+    }
+
+    app_state.state = State::Updating;
+    state_tx.send(app_state.clone()).unwrap();
+
+    download_new_version_and_replace_current(release).await?;
 
     app_state.state = State::Updated;
     state_tx.send(app_state.clone()).unwrap();
