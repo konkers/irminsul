@@ -30,11 +30,15 @@ egui_extras = { version = "0.32.2", features = ["image", "webp"] }
 egui_material_icons = "0.4.0"
 env_logger = "0.11.8"
 futures = "0.3.31"
+futures-util = "0.3.31"
 indexmap = "2.11.1"
 log = "0.4.27"
 pktmon = { version = "0.6.2", features = ["tokio"] }
+reqwest = { version = "0.12.23", features = ["gzip", "stream"] }
+self_update = "0.42.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = { version = "1.0.143", features = ["alloc"] }
+tempfile = "3.21.0"
 tokio = { version = "1.47.1", features = [
 	"rt",
 	"tokio-macros",

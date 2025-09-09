@@ -19,45 +19,39 @@ pub struct Monitor {
     egui_context: egui::Context,
     app_state: AppState,
     state_tx: watch::Sender<AppState>,
-    state_rx: watch::Receiver<AppState>,
     ui_message_rx: mpsc::UnboundedReceiver<Message>,
 }
 
 impl Monitor {
     pub fn new(
+        state_tx: watch::Sender<AppState>,
         ui_message_rx: mpsc::UnboundedReceiver<Message>,
         egui_context: egui::Context,
     ) -> Self {
-        let app_state = AppState::new();
-        let (state_tx, state_rx) = watch::channel(app_state.clone());
+        let app_state = state_tx.borrow().clone();
         Self {
             egui_context,
             app_state,
             state_tx,
-            state_rx,
             ui_message_rx,
         }
     }
 
-    pub fn subscribe(&self) -> watch::Receiver<AppState> {
-        self.state_rx.clone()
-    }
-
     pub fn update_app_state(&mut self, state: State) {
         self.app_state.state = state;
-        self.state_tx.send(self.app_state.clone()).unwrap();
+        let _ = self.state_tx.send(self.app_state.clone());
         self.egui_context.request_repaint();
     }
 
     pub fn update_capturing_state(&mut self, capturing: bool) {
         self.app_state.capturing = capturing;
-        self.state_tx.send(self.app_state.clone()).unwrap();
+        let _ = self.state_tx.send(self.app_state.clone());
         self.egui_context.request_repaint();
     }
 
     pub fn update_data_updated_state(&mut self, data_updated: DataUpdated) {
         self.app_state.updated = data_updated;
-        self.state_tx.send(self.app_state.clone()).unwrap();
+        let _ = self.state_tx.send(self.app_state.clone());
         self.egui_context.request_repaint();
     }
 
@@ -102,12 +96,11 @@ impl Monitor {
                     // On request to stop capture, send cancel request to capture task.
                     Some(msg) = self.ui_message_rx.recv() => {
                         match msg {
-                            Message::DownloadAcknowledged => todo!(),
-                            Message::StartCapture => todo!(),
                             Message::StopCapture => cancel_token.cancel(),
                             Message::ExportGenshinOptimizer(settings, reply_tx) => {
                                 let _ = export_request_tx.send((settings, reply_tx));
                             }
+                            _ => (),
                         }
                     }
                 }

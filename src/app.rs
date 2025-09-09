@@ -10,6 +10,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::monitor::Monitor;
 use crate::player_data::ExportSettings;
+use crate::update::check_for_app_update;
 use crate::{AppState, ConfirmationType, Message, State};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -53,29 +54,39 @@ pub struct IrminsulApp {
     optimizer_export_rx: Option<oneshot::Receiver<Result<String>>>,
     optimizer_export_result: Option<Result<String>>,
 
+    restarting: bool,
+
     saved_state: SavedAppState,
 }
 
-pub fn start_async_runtime(
+fn start_async_runtime(
     egui_ctx: Context,
 ) -> (mpsc::UnboundedSender<Message>, watch::Receiver<AppState>) {
     tracing::info!("starting tokio async");
-    let (ui_message_tx, ui_message_rx) = mpsc::unbounded_channel::<Message>();
+    let (ui_message_tx, mut ui_message_rx) = mpsc::unbounded_channel::<Message>();
 
-    let monitor = Monitor::new(ui_message_rx, egui_ctx.clone());
-    let state_rx = monitor.subscribe();
+    let (state_tx, state_rx) = watch::channel(AppState::new());
+    let mut updater_state_rx = state_rx.clone();
+    let updater_ctx = egui_ctx.clone();
     thread::spawn(|| {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        tracing::info!("Starting monitor");
 
         rt.block_on(async {
-            // Hack: request a repaint every second so the "time since update" refreshes.
+            // Before starting the monitor, check for updates if not in debug mode
+            tracing::info!("Checking for update");
+            if let Err(e) = check_for_app_update(&state_tx, &mut ui_message_rx).await {
+                tracing::error!("error checking for update: {e}");
+            }
+
+            // Notify egui of state changes.
             tokio::spawn(async move {
                 loop {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    egui_ctx.request_repaint();
+                    let _ = updater_state_rx.changed().await;
+                    updater_ctx.request_repaint();
                 }
             });
+            tracing::info!("Starting monitor");
+            let monitor = Monitor::new(state_tx, ui_message_rx, egui_ctx);
             monitor.run().await;
         });
     });
@@ -110,6 +121,7 @@ impl IrminsulApp {
             optimizer_export_open: false,
             optimizer_export_rx: None,
             optimizer_export_result: None,
+            restarting: false,
             state_rx,
         }
     }
@@ -137,6 +149,12 @@ impl eframe::App for IrminsulApp {
                     let state = self.state_rx.borrow_and_update().clone();
                     ui.vertical(|ui| match state.state {
                         State::Starting => (),
+                        State::CheckingForUpdate => self.checking_for_update_ui(ui),
+                        State::WaitingForUpdateConfirmation(status) => {
+                            self.waiting_for_update_confirmation_ui(ui, status)
+                        }
+                        State::Updating => self.updating_ui(ui),
+                        State::Updated => self.updated_ui(ui),
                         State::CheckingForData => self.checking_for_data_ui(ui),
                         State::WaitingForDownloadConfirmation(confirmation_type) => {
                             self.waiting_for_download_confirmation_ui(ui, confirmation_type)
@@ -149,6 +167,7 @@ impl eframe::App for IrminsulApp {
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
                 egui::warn_if_debug_build(ui);
+                ui.label(env!("CARGO_PKG_VERSION").to_string());
             });
         });
     }
@@ -192,9 +211,54 @@ impl IrminsulApp {
         }
     }
 
+    fn checking_for_update_ui(&self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("Checking for Irminsul updates".to_string());
+        });
+    }
+
+    fn waiting_for_update_confirmation_ui(&self, ui: &mut egui::Ui, version: String) {
+        ui.label(format!(
+            "Update {} avaiable.  Download and install?",
+            version
+        ));
+
+        ui.horizontal(|ui| {
+            if ui.add(egui::Button::new("Yes")).clicked() {
+                if let Err(e) = self.ui_message_tx.send(Message::UpdateAcknowledged) {
+                    tracing::error!("Unable to send UI message: {e}");
+                }
+            }
+            if ui.add(egui::Button::new("No")).clicked() {
+                if let Err(e) = self.ui_message_tx.send(Message::UpdateCanceled) {
+                    tracing::error!("Unable to send UI message: {e}");
+                }
+            }
+        });
+    }
+
+    fn updating_ui(&self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("Downloading and updating...".to_string());
+            ui.spinner();
+        });
+    }
+
+    fn updated_ui(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("Updated. Restarting...".to_string());
+        });
+        if !self.restarting {
+            let program_name = std::env::args().next().unwrap();
+            let _ = std::process::Command::new(program_name).spawn();
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            self.restarting = true;
+        }
+    }
+
     fn checking_for_data_ui(&self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.label("Checking for data and updates".to_string());
+            ui.label("Checking for game data updates".to_string());
         });
     }
 

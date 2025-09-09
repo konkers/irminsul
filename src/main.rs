@@ -13,6 +13,7 @@ mod capture;
 mod good;
 mod monitor;
 mod player_data;
+mod update;
 
 const APP_ID: &str = "Irminsul";
 
@@ -22,9 +23,13 @@ pub enum ConfirmationType {
     Update,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum State {
     Starting,
+    CheckingForUpdate,
+    WaitingForUpdateConfirmation(String),
+    Updating,
+    Updated,
     CheckingForData,
     WaitingForDownloadConfirmation(ConfirmationType),
     Downloading,
@@ -33,6 +38,8 @@ pub enum State {
 
 #[derive(Debug)]
 pub enum Message {
+    UpdateAcknowledged,
+    UpdateCanceled,
     DownloadAcknowledged,
     StartCapture,
     StopCapture,
