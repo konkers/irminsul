@@ -4,6 +4,7 @@ use anime_game_data::{AnimeGameData, Property, SkillType};
 use anyhow::Result;
 pub use auto_artifactarium::Achievement;
 pub use auto_artifactarium::r#gen::protos::{AvatarInfo, Item};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use crate::good;
@@ -175,7 +176,7 @@ impl<'a> PlayerData<'a> {
                 }
                 let artifact_data = self.game_data.get_artifact(item.item_id).ok()?;
                 let artifact = equip.reliquary();
-                let mut substats: HashMap<Property, f64> = HashMap::new();
+                let mut substats: IndexMap<Property, f64> = IndexMap::new();
                 for substat_id in &artifact.append_prop_id_list {
                     let Some(substat) = self.game_data.get_affix(*substat_id).ok() else {
                         continue;

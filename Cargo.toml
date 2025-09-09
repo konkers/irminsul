@@ -30,6 +30,7 @@ egui_extras = { version = "0.32.2", features = ["image", "webp"] }
 egui_material_icons = "0.4.0"
 env_logger = "0.11.8"
 futures = "0.3.31"
+indexmap = "2.11.1"
 log = "0.4.27"
 pktmon = { version = "0.6.2", features = ["tokio"] }
 serde = { version = "1.0.219", features = ["derive"] }
