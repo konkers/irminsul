@@ -14,7 +14,7 @@ targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "d5dc51754ac96d65ad1201c85cd03cc9dc35bb72" }
 anyhow = "1.0.99"
 arboard = "3.6.1"
-auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "3683e58c93894237c58ba09cad25e14065b36556" }
+auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "6b697d3180831a4c8ce5f30e012149716dd6110c" }
 base64 = "0.22.1"
 ctrlc = "3.4.7"
 eframe = { version = "0.32", default-features = false, features = [
