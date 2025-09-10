@@ -3,7 +3,8 @@ use std::time::Instant;
 
 use anyhow::Result;
 use egui::{
-    Button, Color32, Context, DragValue, Id, Modal, PointerButton, RichText, Sense, ViewportCommand,
+    Button, Color32, Context, DragValue, Id, Key, KeyboardShortcut, Modal, Modifiers,
+    PointerButton, RichText, Sense, ViewportCommand,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot, watch};
@@ -18,6 +19,7 @@ pub struct SavedAppState {
     export_settings: ExportSettings,
     #[serde(default)]
     auto_start_capture: bool,
+    log_raw_packets: bool,
 }
 
 impl Default for SavedAppState {
@@ -39,6 +41,7 @@ impl Default for SavedAppState {
                 min_weapon_rarity: 3,
             },
             auto_start_capture: false,
+            log_raw_packets: false,
         }
     }
 }
@@ -46,6 +49,9 @@ impl Default for SavedAppState {
 pub struct IrminsulApp {
     ui_message_tx: mpsc::UnboundedSender<Message>,
     state_rx: watch::Receiver<AppState>,
+    log_packets_tx: watch::Sender<bool>,
+
+    power_tools_open: bool,
 
     capture_settings_open: bool,
 
@@ -61,6 +67,7 @@ pub struct IrminsulApp {
 
 fn start_async_runtime(
     egui_ctx: Context,
+    log_packets_rx: watch::Receiver<bool>,
 ) -> (mpsc::UnboundedSender<Message>, watch::Receiver<AppState>) {
     tracing::info!("starting tokio async");
     let (ui_message_tx, mut ui_message_rx) = mpsc::unbounded_channel::<Message>();
@@ -86,7 +93,7 @@ fn start_async_runtime(
                 }
             });
             tracing::info!("Starting monitor");
-            let monitor = Monitor::new(state_tx, ui_message_rx, egui_ctx);
+            let monitor = Monitor::new(state_tx, ui_message_rx, log_packets_rx, egui_ctx);
             monitor.run().await;
         });
     });
@@ -105,7 +112,8 @@ impl IrminsulApp {
             Default::default()
         };
 
-        let (ui_message_tx, state_rx) = start_async_runtime(cc.egui_ctx.clone());
+        let (log_packets_tx, log_packets_rx) = watch::channel(saved_state.log_raw_packets);
+        let (ui_message_tx, state_rx) = start_async_runtime(cc.egui_ctx.clone(), log_packets_rx);
 
         if saved_state.auto_start_capture {
             if let Err(e) = ui_message_tx.send(Message::StartCapture) {
@@ -116,6 +124,8 @@ impl IrminsulApp {
         Self {
             saved_state,
             ui_message_tx,
+            log_packets_tx,
+            power_tools_open: false,
             capture_settings_open: false,
             optimizer_settings_open: false,
             optimizer_export_open: false,
@@ -144,6 +154,31 @@ impl eframe::App for IrminsulApp {
             ui.vertical(|ui| {
                 self.title_bar(ui);
                 ui.add_space(25.);
+
+                // Handle power tools here instead of main UI to allow it to be opened
+                // in other app states.
+                let power_tools_shortcut = KeyboardShortcut {
+                    modifiers: Modifiers {
+                        command: true,
+                        shift: true,
+                        ..Default::default()
+                    },
+                    logical_key: Key::P,
+                };
+                ui.ctx().input_mut(|i| {
+                    if i.consume_shortcut(&power_tools_shortcut) {
+                        self.power_tools_open = true;
+                    }
+                });
+                if self.power_tools_open {
+                    let modal = Modal::new(Id::new("Power Tools")).show(ui.ctx(), |ui| {
+                        self.power_tools_modal(ui);
+                    });
+                    if modal.should_close() {
+                        self.power_tools_open = false;
+                    }
+                }
+
                 ui.horizontal(|ui| {
                     ui.add_space(525.);
                     let state = self.state_rx.borrow_and_update().clone();
@@ -405,6 +440,28 @@ impl IrminsulApp {
                 },
             );
         });
+    }
+
+    fn power_tools_modal(&mut self, ui: &mut egui::Ui) {
+        ui.set_width(300.0);
+        ui.heading("Power Tools");
+        ui.separator();
+        if ui
+            .checkbox(&mut self.saved_state.log_raw_packets, "Log raw packets")
+            .changed()
+        {
+            let _ = self.log_packets_tx.send(self.saved_state.log_raw_packets);
+        };
+        ui.separator();
+        egui::Sides::new().show(
+            ui,
+            |_ui| {},
+            |ui| {
+                if ui.button("Ok").clicked() {
+                    ui.close()
+                }
+            },
+        );
     }
 
     fn capture_settings_modal(&mut self, ui: &mut egui::Ui) {

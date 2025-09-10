@@ -3,6 +3,7 @@
 use std::time::Instant;
 
 use anyhow::Result;
+use clap::{Parser, command};
 use tokio::sync::oneshot;
 
 use crate::player_data::ExportSettings;
@@ -86,11 +87,21 @@ impl AppState {
     }
 }
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(long, default_value_t = false)]
+    no_admin: bool,
+}
 fn main() -> eframe::Result {
     let _guard = tracing_init().unwrap();
 
-    #[cfg(windows)]
-    admin::ensure_admin();
+    let args = Args::parse();
+
+    if !args.no_admin {
+        #[cfg(windows)]
+        admin::ensure_admin();
+    }
 
     let background_image_size = [1600., 1000.];
 

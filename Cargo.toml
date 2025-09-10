@@ -16,6 +16,8 @@ anyhow = "1.0.99"
 arboard = "3.6.1"
 auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "6b697d3180831a4c8ce5f30e012149716dd6110c" }
 base64 = "0.22.1"
+chrono = "0.4.42"
+clap = { version = "4.5.47", features = ["derive"] }
 ctrlc = "3.4.7"
 eframe = { version = "0.32", default-features = false, features = [
 	"accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.

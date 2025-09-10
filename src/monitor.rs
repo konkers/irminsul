@@ -1,13 +1,17 @@
 use std::collections::HashMap;
+use std::fs;
+use std::io::{BufWriter, Write};
 use std::sync::Arc;
 use std::time::Instant;
 
 use anime_game_data::AnimeGameData;
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use auto_artifactarium::{
-    GamePacket, GameSniffer, matches_achievement_packet, matches_avatar_packet, matches_item_packet,
+    GameCommand, GamePacket, GameSniffer, matches_achievement_packet, matches_avatar_packet,
+    matches_item_packet,
 };
 use base64::prelude::*;
+use chrono::prelude::*;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio_util::sync::CancellationToken;
 
@@ -20,12 +24,14 @@ pub struct Monitor {
     app_state: AppState,
     state_tx: watch::Sender<AppState>,
     ui_message_rx: mpsc::UnboundedReceiver<Message>,
+    log_packet_rx: watch::Receiver<bool>,
 }
 
 impl Monitor {
     pub fn new(
         state_tx: watch::Sender<AppState>,
         ui_message_rx: mpsc::UnboundedReceiver<Message>,
+        log_packet_rx: watch::Receiver<bool>,
         egui_context: egui::Context,
     ) -> Self {
         let app_state = state_tx.borrow().clone();
@@ -34,6 +40,7 @@ impl Monitor {
             app_state,
             state_tx,
             ui_message_rx,
+            log_packet_rx,
         }
     }
 
@@ -76,6 +83,7 @@ impl Monitor {
             let mut capture_join_handle = tokio::spawn(capture_task(
                 cancel_token.clone(),
                 export_request_rx,
+                self.log_packet_rx.clone(),
                 data_updated_tx,
                 game_data.clone(),
             ));
@@ -154,6 +162,7 @@ async fn capture_task(
         ExportSettings,
         oneshot::Sender<Result<String>>,
     )>,
+    mut log_packets_rx: watch::Receiver<bool>,
     data_updated_tx: mpsc::UnboundedSender<DataUpdated>,
     game_data: Arc<AnimeGameData>,
 ) -> Result<()> {
@@ -189,10 +198,16 @@ async fn capture_task(
         else {
             continue;
         };
+        let log_packets = *log_packets_rx.borrow_and_update();
 
         let mut has_new_data = false;
         for command in commands {
             let span = tracing::info_span!("packet id {}", command.command_id);
+            if log_packets {
+                if let Err(e) = log_command(&command) {
+                    tracing::info!("error logging command {e}");
+                }
+            }
             let _trace = span.enter();
 
             if let Some(items) = matches_item_packet(&command) {
@@ -223,6 +238,26 @@ async fn capture_task(
         }
     }
     tracing::info!("ending capture");
+    Ok(())
+}
+
+fn log_command(command: &GameCommand) -> Result<()> {
+    let mut packet_log_path = eframe::storage_dir(APP_ID).context("Storage dir not found")?;
+    packet_log_path.push("packet_log");
+    fs::create_dir_all(&packet_log_path)?;
+
+    let now = Local::now();
+    packet_log_path.push(format!(
+        "{}-{}.bin",
+        now.format("%Y-%m-%d_%H-%M-%S%.f"),
+        command.command_id
+    ));
+
+    let file = fs::File::create(&packet_log_path)
+        .with_context(|| format!("can't create file {packet_log_path:?}"))?;
+    let mut writer = BufWriter::new(file);
+    writer.write_all(&command.proto_data)?;
+
     Ok(())
 }
 
