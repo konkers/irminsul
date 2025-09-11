@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct Substat {
     pub key: String,
     pub value: f32,
+    pub initial_value: f32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -21,6 +22,16 @@ pub struct Artifact {
     pub location: String,
     pub lock: bool,
     pub substats: Vec<Substat>,
+
+    // GOOD v3 fields.
+    #[serde(rename = "totalRolls")]
+    pub total_rolls: u32,
+    #[serde(rename = "astralMark")]
+    pub astral_mark: bool,
+    #[serde(rename = "elixerCrafted")]
+    pub elixer_crafted: bool,
+    #[serde(rename = "unactivatedSubstats")]
+    pub unactivated_substats: Vec<Substat>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

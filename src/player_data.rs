@@ -71,7 +71,7 @@ impl<'a> PlayerData<'a> {
     pub fn export_genshin_optimizer(&self, settings: &ExportSettings) -> Result<String> {
         let mut good = good::Good {
             format: "GOOD".to_string(),
-            version: 2,
+            version: 3,
             source: "Irminsul".to_string(),
             characters: Vec::new(),
             artifacts: Vec::new(),
@@ -149,6 +149,15 @@ impl<'a> PlayerData<'a> {
             .collect()
     }
 
+    pub fn round(property: Property, value: f32) -> f32 {
+        // The game rounds percentages to 0.1 and non percentages to whole numbers.
+        if property.is_percentage() {
+            (value * 10.).round() / 10.
+        } else {
+            value.round()
+        }
+    }
+
     pub fn export_genshin_optimizer_artifacts(
         &self,
         settings: &ExportSettings,
@@ -176,28 +185,42 @@ impl<'a> PlayerData<'a> {
                 }
                 let artifact_data = self.game_data.get_artifact(item.item_id).ok()?;
                 let artifact = equip.reliquary();
-                let mut substats: IndexMap<Property, f32> = IndexMap::new();
-                for substat_id in &artifact.append_prop_id_list {
+                let mut substats: IndexMap<Property, (f32, f32)> = IndexMap::new();
+                for substat_id in artifact.append_prop_id_list.iter() {
                     let Some(substat) = self.game_data.get_affix(*substat_id).ok() else {
                         continue;
                     };
-                    *substats.entry(substat.property).or_default() += substat.value as f32;
+                    let mut entry = *substats
+                        .entry(substat.property)
+                        .or_insert((0., substat.value as f32));
+                    entry.0 += substat.value as f32;
                 }
                 let substats = substats
                     .into_iter()
-                    .map(|(property, value)| good::Substat {
+                    .map(|(property, (value, initial_value))| good::Substat {
                         key: property.good_name().to_string(),
-                        // The game rounds percentages to 0.1 and non percentages to whole numbers.
-                        value: if property.is_percentage() {
-                            (value * 10.).round() / 10.
-                        } else {
-                            value.round()
-                        },
+                        value: Self::round(property, value),
+                        initial_value: Self::round(property, initial_value),
                     })
                     .collect();
+                let unactivated_substats = artifact
+                    .unactivated_prop_id_list
+                    .iter()
+                    .filter_map(|substat_id| {
+                        let substat = self.game_data.get_affix(*substat_id).ok()?;
+                        Some(good::Substat {
+                            key: substat.property.good_name().to_string(),
+                            value: Self::round(substat.property, substat.value as f32),
+                            initial_value: Self::round(substat.property, substat.value as f32),
+                        })
+                    })
+                    .collect();
+                let total_rolls = artifact.append_prop_id_list.len() as u32;
 
                 let level = artifact.level - 1;
                 let rarity = artifact_data.rarity;
+                let astral_mark = artifact.starred;
+                let elixer_crafted = !artifact.elixer_choices.is_empty();
                 let main_stat_key = self
                     .game_data
                     .get_property(artifact.main_prop_id)
@@ -218,6 +241,10 @@ impl<'a> PlayerData<'a> {
                     location,
                     lock: equip.is_locked,
                     substats,
+                    total_rolls,
+                    astral_mark,
+                    elixer_crafted,
+                    unactivated_substats,
                 })
             })
             .collect()
