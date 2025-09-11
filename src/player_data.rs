@@ -71,7 +71,7 @@ impl<'a> PlayerData<'a> {
     pub fn export_genshin_optimizer(&self, settings: &ExportSettings) -> Result<String> {
         let mut good = good::Good {
             format: "GOOD".to_string(),
-            version: 2,
+            version: 3,
             source: "Irminsul".to_string(),
             characters: Vec::new(),
             artifacts: Vec::new(),
@@ -177,7 +177,11 @@ impl<'a> PlayerData<'a> {
                 let artifact_data = self.game_data.get_artifact(item.item_id).ok()?;
                 let artifact = equip.reliquary();
                 let mut substats: IndexMap<Property, f32> = IndexMap::new();
-                for substat_id in &artifact.append_prop_id_list {
+                for substat_id in artifact
+                    .append_prop_id_list
+                    .iter()
+                    .chain(artifact.unactivated_prop_id_list.iter())
+                {
                     let Some(substat) = self.game_data.get_affix(*substat_id).ok() else {
                         continue;
                     };
@@ -195,9 +199,11 @@ impl<'a> PlayerData<'a> {
                         },
                     })
                     .collect();
+                let total_rolls = artifact.append_prop_id_list.len() as u32;
 
                 let level = artifact.level - 1;
                 let rarity = artifact_data.rarity;
+                let astral_mark = artifact.starred;
                 let main_stat_key = self
                     .game_data
                     .get_property(artifact.main_prop_id)
@@ -218,6 +224,10 @@ impl<'a> PlayerData<'a> {
                     location,
                     lock: equip.is_locked,
                     substats,
+                    total_rolls,
+                    astral_mark,
+                    discard: false,
+                    elixer_crafted: false,
                 })
             })
             .collect()
