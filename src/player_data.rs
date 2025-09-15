@@ -190,7 +190,7 @@ impl<'a> PlayerData<'a> {
                     let Some(substat) = self.game_data.get_affix(*substat_id).ok() else {
                         continue;
                     };
-                    let mut entry = *substats
+                    let entry = substats
                         .entry(substat.property)
                         .or_insert((0., substat.value as f32));
                     entry.0 += substat.value as f32;
