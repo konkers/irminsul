@@ -28,6 +28,8 @@ eframe = { version = "0.32", default-features = false, features = [
 	"x11",           # To support older Linux distributions (restores one of the default features)
 ] }
 egui = "0.32"
+egui-file-dialog = "0.11.0"
+egui-notify = "0.20.0"
 egui_extras = { version = "0.32.2", features = ["image", "webp"] }
 egui_material_icons = "0.4.0"
 env_logger = "0.11.8"

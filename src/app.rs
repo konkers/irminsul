@@ -1,11 +1,17 @@
+use std::fmt::Display;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 use std::thread;
 use std::time::Instant;
 
-use anyhow::Result;
+use anyhow::{Context as _, Result, anyhow};
 use egui::{
     Button, Color32, Context, DragValue, Id, Key, KeyboardShortcut, Modal, Modifiers,
     PointerButton, RichText, Sense, ViewportCommand,
 };
+use egui_file_dialog::FileDialog;
+use egui_notify::Toasts;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -46,23 +52,50 @@ impl Default for SavedAppState {
     }
 }
 
+#[derive(Clone, Debug)]
+enum OptimizerExportTarget {
+    None,
+    Clipboard,
+    File,
+}
+
 pub struct IrminsulApp {
     ui_message_tx: mpsc::UnboundedSender<Message>,
     state_rx: watch::Receiver<AppState>,
     log_packets_tx: watch::Sender<bool>,
+
+    toasts: Toasts,
 
     power_tools_open: bool,
 
     capture_settings_open: bool,
 
     optimizer_settings_open: bool,
-    optimizer_export_open: bool,
     optimizer_export_rx: Option<oneshot::Receiver<Result<String>>>,
-    optimizer_export_result: Option<Result<String>>,
+    optimizer_save_dialog: FileDialog,
+    optimizer_save_path: Option<PathBuf>,
+    optimizer_export_target: OptimizerExportTarget,
 
     restarting: bool,
 
     saved_state: SavedAppState,
+}
+
+trait ToastError<T> {
+    fn toast_error(self, app: &mut IrminsulApp) -> Option<T>;
+}
+
+impl<T, E: Display> ToastError<T> for std::result::Result<T, E> {
+    fn toast_error(self, app: &mut IrminsulApp) -> Option<T> {
+        match self {
+            Ok(val) => Some(val),
+            Err(e) => {
+                tracing::error!("{e}");
+                app.toasts.error(e.to_string());
+                None
+            }
+        }
+    }
 }
 
 fn start_async_runtime(
@@ -121,16 +154,24 @@ impl IrminsulApp {
             }
         }
 
+        let optimizer_save_dialog = FileDialog::new()
+            .add_file_filter_extensions("JSON files", vec!["json"])
+            .default_file_name("genshin_export.json");
+
+        let toasts = Toasts::default().with_anchor(egui_notify::Anchor::BottomLeft);
+
         Self {
             saved_state,
             ui_message_tx,
             log_packets_tx,
+            toasts,
             power_tools_open: false,
             capture_settings_open: false,
             optimizer_settings_open: false,
-            optimizer_export_open: false,
             optimizer_export_rx: None,
-            optimizer_export_result: None,
+            optimizer_save_dialog,
+            optimizer_save_path: None,
+            optimizer_export_target: OptimizerExportTarget::None,
             restarting: false,
             state_rx,
         }
@@ -145,6 +186,8 @@ impl eframe::App for IrminsulApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.toasts.show(ctx);
+        self.optimizer_save_dialog.update(ctx);
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                 egui::Image::new(egui::include_image!("../assets/background.webp"))
@@ -339,14 +382,6 @@ impl IrminsulApp {
                 self.optimizer_settings_open = false;
             }
         }
-        if self.optimizer_export_open {
-            let modal = Modal::new(Id::new("Optimizer Export")).show(ui.ctx(), |ui| {
-                self.optimizer_export_modal(ui);
-            });
-            if modal.should_close() {
-                self.optimizer_export_open = false;
-            }
-        }
         self.capture_ui(ui, app_state);
         ui.separator();
         self.genshin_optimizer_ui(ui, app_state);
@@ -405,6 +440,8 @@ impl IrminsulApp {
     }
 
     fn genshin_optimizer_ui(&mut self, ui: &mut egui::Ui, app_state: &AppState) {
+        self.optimizer_handle_export().toast_error(self);
+
         ui.vertical(|ui| {
             egui::Sides::new().show(
                 ui,
@@ -421,25 +458,44 @@ impl IrminsulApp {
 
                     ui.add_enabled_ui(
                         app_state.updated.characters_updated.is_some()
-                            && app_state.updated.items_updated.is_some(),
+                            && app_state.updated.items_updated.is_some()
+                            && self.optimizer_export_rx.is_none(),
                         |ui| {
+                            if ui
+                                .button(egui_material_icons::icons::ICON_DOWNLOAD)
+                                .clicked()
+                            {
+                                self.optimizer_save_dialog.save_file();
+                            }
+
+                            if let Some(path) = self.optimizer_save_dialog.take_picked() {
+                                self.optimizer_save_path = Some(path);
+                                self.genshin_optimizer_request_export(OptimizerExportTarget::File);
+                            }
+
                             if ui
                                 .button(egui_material_icons::icons::ICON_CONTENT_PASTE_GO)
                                 .clicked()
                             {
-                                let (tx, rx) = oneshot::channel();
-                                let _ = self.ui_message_tx.send(Message::ExportGenshinOptimizer(
-                                    self.saved_state.export_settings.clone(),
-                                    tx,
-                                ));
-                                self.optimizer_export_open = true;
-                                self.optimizer_export_rx = Some(rx);
+                                self.genshin_optimizer_request_export(
+                                    OptimizerExportTarget::Clipboard,
+                                );
                             }
                         },
                     );
                 },
             );
         });
+    }
+
+    fn genshin_optimizer_request_export(&mut self, target: OptimizerExportTarget) {
+        let (tx, rx) = oneshot::channel();
+        let _ = self.ui_message_tx.send(Message::ExportGenshinOptimizer(
+            self.saved_state.export_settings.clone(),
+            tx,
+        ));
+        self.optimizer_export_target = target;
+        self.optimizer_export_rx = Some(rx);
     }
 
     fn power_tools_modal(&mut self, ui: &mut egui::Ui) {
@@ -597,53 +653,51 @@ impl IrminsulApp {
             },
         );
     }
-    fn optimizer_export_modal(&mut self, ui: &mut egui::Ui) {
-        if let Some(rx) = self.optimizer_export_rx.take()
-            && let Ok(json) = rx.blocking_recv()
-        {
-            self.optimizer_export_result = Some(json);
-        }
 
-        ui.set_width(300.0);
-        ui.heading("Genshin Optimizer export");
-        ui.separator();
-
-        let json = match &self.optimizer_export_result {
-            Some(Ok(json)) => {
-                ui.label("Export generated".to_string());
-                Some(json)
-            }
-            Some(Err(e)) => {
-                ui.label(format!("Error generating export: {e}"));
-                None
-            }
-            None => {
-                ui.label("Generating export...".to_string());
-                None
-            }
+    fn optimizer_handle_export(&mut self) -> Result<()> {
+        let Some(rx) = self.optimizer_export_rx.take() else {
+            return Ok(());
         };
 
-        ui.separator();
-        egui::Sides::new().show(
-            ui,
-            |_ui| {},
-            |ui| {
-                if ui.button("Close").clicked() {
-                    ui.close()
-                }
+        let json = rx.blocking_recv()??;
 
-                if let Some(json) = json {
-                    if ui.button("Copy to Clipboard").clicked() {
-                        if let Err(e) =
-                            arboard::Clipboard::new().and_then(|mut c| c.set_text(json.clone()))
-                        {
-                            tracing::error!("Error setting clipboard: {e}");
-                        }
-                        ui.close()
-                    }
-                }
-            },
-        );
+        match self.optimizer_export_target {
+            OptimizerExportTarget::None => {
+                tracing::warn!("Unexpected json export");
+            }
+            OptimizerExportTarget::Clipboard => {
+                self.optimizer_save_to_clipboard(json)?;
+            }
+            OptimizerExportTarget::File => {
+                self.optimizer_save_to_file(json)?;
+            }
+        }
+
+        self.optimizer_export_target = OptimizerExportTarget::None;
+        Ok(())
+    }
+
+    fn optimizer_save_to_clipboard(&mut self, json: String) -> Result<()> {
+        arboard::Clipboard::new()
+            .and_then(|mut c| c.set_text(json.clone()))
+            .context("Error copying data to clipboard")?;
+        self.toasts
+            .info("Genshin Optimizer data copied to clipboard");
+        Ok(())
+    }
+
+    fn optimizer_save_to_file(&mut self, json: String) -> Result<()> {
+        let path = self
+            .optimizer_save_path
+            .take()
+            .ok_or_else(|| anyhow!("No save file path set"))?;
+
+        let file = File::create(&path).with_context(|| format!("Unable to open file {path:?}"))?;
+        let mut writer = BufWriter::new(file);
+        writer.write_all(json.as_bytes())?;
+
+        self.toasts.info("Genshin Optimizer data saved to file");
+        Ok(())
     }
 
     fn achievement_ui(&self, ui: &mut egui::Ui, _app_state: &AppState) {
