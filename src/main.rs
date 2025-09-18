@@ -6,6 +6,7 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use clap::{Parser, command};
 use tokio::sync::oneshot;
+use tracing_appender::rolling::Rotation;
 
 use crate::player_data::ExportSettings;
 
@@ -146,7 +147,11 @@ fn open_log_dir() -> Result<()> {
 }
 
 fn tracing_init() -> Result<tracing_appender::non_blocking::WorkerGuard> {
-    let appender = tracing_appender::rolling::daily(log_dir()?, "log");
+    let appender = tracing_appender::rolling::Builder::new()
+        .filename_prefix("log")
+        .rotation(Rotation::DAILY)
+        .max_log_files(7)
+        .build(log_dir()?)?;
     let (non_blocking_appender, guard) = tracing_appender::non_blocking(appender);
 
     tracing_subscriber::fmt()
