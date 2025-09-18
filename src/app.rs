@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use anyhow::{Context as _, Result, anyhow};
 use egui::{
-    Button, Color32, Context, DragValue, Id, Key, KeyboardShortcut, Modal, Modifiers,
+    Button, Color32, Context, DragValue, Id, Key, KeyboardShortcut, Modal, Modifiers, OpenUrl,
     PointerButton, RichText, Sense, ViewportCommand,
 };
 use egui_file_dialog::FileDialog;
@@ -18,7 +18,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 use crate::monitor::Monitor;
 use crate::player_data::ExportSettings;
 use crate::update::check_for_app_update;
-use crate::{AppState, ConfirmationType, Message, State};
+use crate::{AppState, ConfirmationType, Message, State, open_log_dir};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SavedAppState {
@@ -67,6 +67,7 @@ pub struct IrminsulApp {
     toasts: Toasts,
 
     power_tools_open: bool,
+    bug_report_open: bool,
 
     capture_settings_open: bool,
 
@@ -166,6 +167,7 @@ impl IrminsulApp {
             log_packets_tx,
             toasts,
             power_tools_open: false,
+            bug_report_open: false,
             capture_settings_open: false,
             optimizer_settings_open: false,
             optimizer_export_rx: None,
@@ -213,12 +215,22 @@ impl eframe::App for IrminsulApp {
                         self.power_tools_open = true;
                     }
                 });
+
                 if self.power_tools_open {
                     let modal = Modal::new(Id::new("Power Tools")).show(ui.ctx(), |ui| {
                         self.power_tools_modal(ui);
                     });
                     if modal.should_close() {
                         self.power_tools_open = false;
+                    }
+                }
+
+                if self.bug_report_open {
+                    let modal = Modal::new(Id::new("Bug Report")).show(ui.ctx(), |ui| {
+                        self.bug_report_modal(ui);
+                    });
+                    if modal.should_close() {
+                        self.bug_report_open = false;
                     }
                 }
 
@@ -244,8 +256,19 @@ impl eframe::App for IrminsulApp {
             });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
-                egui::warn_if_debug_build(ui);
-                ui.label(env!("CARGO_PKG_VERSION").to_string());
+                ui.horizontal(|ui| {
+                    let button = ui.add(
+                        Button::new(
+                            RichText::new(egui_material_icons::icons::ICON_BUG_REPORT).size(16.),
+                        )
+                        .frame(false),
+                    );
+                    if button.clicked() {
+                        self.bug_report_open = true;
+                    }
+                    ui.label(env!("CARGO_PKG_VERSION").to_string());
+                    egui::warn_if_debug_build(ui);
+                });
             });
         });
     }
@@ -297,7 +320,7 @@ impl IrminsulApp {
 
     fn waiting_for_update_confirmation_ui(&self, ui: &mut egui::Ui, version: String) {
         ui.label(format!(
-            "Update {} avaiable.  Download and install?",
+            "Update {} available.  Download and install?",
             version
         ));
 
@@ -514,6 +537,34 @@ impl IrminsulApp {
             |_ui| {},
             |ui| {
                 if ui.button("Ok").clicked() {
+                    ui.close()
+                }
+            },
+        );
+    }
+
+    fn bug_report_modal(&mut self, ui: &mut egui::Ui) {
+        ui.set_width(300.0);
+        ui.heading("Bug Report");
+        ui.separator();
+        ui.label("When filing a bug, please include the latest log file:");
+        if ui.button("Open log directory").clicked() {
+            thread::spawn(|| {
+                let _ = open_log_dir();
+            });
+        }
+        ui.separator();
+        egui::Sides::new().show(
+            ui,
+            |_ui| {},
+            |ui| {
+                if ui.button("New GitHub Issue").clicked() {
+                    ui.ctx().open_url(OpenUrl::new_tab(
+                        "https://github.com/konkers/irminsul/issues/new",
+                    ));
+                    ui.close()
+                }
+                if ui.button("Cancel").clicked() {
                     ui.close()
                 }
             },

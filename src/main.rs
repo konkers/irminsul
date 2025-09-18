@@ -1,8 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use std::path::PathBuf;
 use std::time::Instant;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, command};
 use tokio::sync::oneshot;
 
@@ -125,12 +126,27 @@ fn main() -> eframe::Result {
     )
 }
 
-fn tracing_init() -> anyhow::Result<tracing_appender::non_blocking::WorkerGuard> {
-    let mut storage_dir =
-        anyhow::Context::context(eframe::storage_dir(APP_ID), "Storage dir not found")?;
-    storage_dir.push("log");
+fn log_dir() -> Result<PathBuf> {
+    let mut dir = eframe::storage_dir(APP_ID).context("Storage dir not found")?;
+    dir.push("log");
+    Ok(dir)
+}
 
-    let appender = tracing_appender::rolling::daily(storage_dir, "log");
+#[cfg(windows)]
+fn open_log_dir() -> Result<()> {
+    use std::process::Command;
+
+    let dir = log_dir()?;
+
+    let _ = Command::new("explorer.exe")
+        .args([dir.as_os_str()])
+        .output()?;
+
+    Ok(())
+}
+
+fn tracing_init() -> Result<tracing_appender::non_blocking::WorkerGuard> {
+    let appender = tracing_appender::rolling::daily(log_dir()?, "log");
     let (non_blocking_appender, guard) = tracing_appender::non_blocking(appender);
 
     tracing_subscriber::fmt()
