@@ -33,6 +33,9 @@ jobs:
           mv Cargo.toml.new Cargo.toml
           cargo generate-lockfile
       - run: cargo build --release
+      - run: cargo build
+      - name: rename debug artifact
+        run: mv -Force target/debug/irminsul.exe target/debug/irminsul-debug.exe
       - name: Push updated version
         run: |
           git config user.name "irminsul bot"
@@ -45,6 +48,10 @@ jobs:
         with:
           name: irminsul
           path: target/release/irminsul.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: irminsul-debug
+          path: target/debug/irminsul-debug.exe
 
   create-release:
     runs-on: ubuntu-latest
@@ -53,10 +60,15 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Download artifacts
+      - name: Download release artifact
         uses: actions/download-artifact@v4
         with:
           name: irminsul
+          path: ./
+      - name: Download debug artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: irminsul-debug
           path: ./
       - name: Create and push version tag
         run: |
@@ -67,4 +79,4 @@ jobs:
         with:
           tag: v${{inputs.nextVersion}}
           name: "v${{inputs.nextVersion}}"
-          artifacts: "irminsul.exe"
+          artifacts: "irminsul.exe,irminsul-debug.exe"

@@ -154,9 +154,15 @@ fn tracing_init() -> Result<tracing_appender::non_blocking::WorkerGuard> {
         .build(log_dir()?)?;
     let (non_blocking_appender, guard) = tracing_appender::non_blocking(appender);
 
+    let filter = if cfg!(debug_assertions) {
+        "info"
+    } else {
+        "warn,irminsul=info"
+    };
+
     tracing_subscriber::fmt()
         .with_writer(non_blocking_appender)
-        .with_env_filter("warn,irminsul=info")
+        .with_env_filter(filter)
         .with_ansi(false)
         .init();
     tracing::info!("Tracing initialized and logging to file.");

@@ -34,6 +34,7 @@ jobs:
       - run: cargo test --release
       - run: cargo clippy --release
       - run: cargo build --release
+      - run: cargo build
       - if: ${{matrix.artifact_name}}
         name: Upload release artifact
         uses: actions/upload-artifact@v4
