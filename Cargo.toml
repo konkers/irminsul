@@ -14,7 +14,7 @@ targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "d5dc51754ac96d65ad1201c85cd03cc9dc35bb72" }
 anyhow = "1.0.99"
 arboard = "3.6.1"
-auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "d8b10dac7641ea2b10e241c4c0da9ae31cd5fddc" }
+auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "aacbee7ec62f6babe8c150daf2a4f5e991bc6ce1" }
 base64 = "0.22.1"
 chrono = "0.4.42"
 clap = { version = "4.5.47", features = ["derive"] }
