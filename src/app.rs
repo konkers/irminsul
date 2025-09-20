@@ -127,7 +127,13 @@ fn start_async_runtime(
                 }
             });
             tracing::info!("Starting monitor");
-            let monitor = Monitor::new(state_tx, ui_message_rx, log_packets_rx, egui_ctx);
+            let monitor = match Monitor::new(state_tx, ui_message_rx, log_packets_rx).await {
+                Ok(monitor) => monitor,
+                Err(e) => {
+                    tracing::error!("error loading monitor task: {e}");
+                    return;
+                }
+            };
             monitor.run().await;
         });
     });

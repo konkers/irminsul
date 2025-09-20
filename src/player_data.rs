@@ -29,8 +29,8 @@ pub struct ExportSettings {
     pub min_weapon_rarity: u32,
 }
 
-pub struct PlayerData<'a> {
-    game_data: &'a AnimeGameData,
+pub struct PlayerData {
+    game_data: AnimeGameData,
     achievements: Vec<Achievement>,
     characters: Vec<AvatarInfo>,
     items: Vec<Item>,
@@ -38,8 +38,8 @@ pub struct PlayerData<'a> {
     character_equip_guid_map: HashMap<u64, u32>,
 }
 
-impl<'a> PlayerData<'a> {
-    pub fn new(game_data: &'a AnimeGameData) -> Self {
+impl PlayerData {
+    pub fn new(game_data: AnimeGameData) -> Self {
         Self {
             game_data,
             achievements: Vec::new(),

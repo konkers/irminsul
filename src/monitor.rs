@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufWriter, Write};
-use std::sync::Arc;
 use std::time::Instant;
 
 use anime_game_data::AnimeGameData;
@@ -12,176 +11,205 @@ use auto_artifactarium::{
 };
 use base64::prelude::*;
 use chrono::prelude::*;
-use tokio::sync::{mpsc, oneshot, watch};
+use pktmon::Packet;
+use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
 use crate::capture::PacketCapture;
-use crate::player_data::{ExportSettings, PlayerData};
+use crate::player_data::PlayerData;
 use crate::{APP_ID, AppState, ConfirmationType, DataUpdated, Message, State};
 
-pub struct Monitor {
-    egui_context: egui::Context,
+struct AppStateManager {
     app_state: AppState,
     state_tx: watch::Sender<AppState>,
-    ui_message_rx: mpsc::UnboundedReceiver<Message>,
-    log_packet_rx: watch::Receiver<bool>,
 }
 
-impl Monitor {
-    pub fn new(
-        state_tx: watch::Sender<AppState>,
-        ui_message_rx: mpsc::UnboundedReceiver<Message>,
-        log_packet_rx: watch::Receiver<bool>,
-        egui_context: egui::Context,
-    ) -> Self {
-        let app_state = state_tx.borrow().clone();
+impl AppStateManager {
+    fn new(app_state: AppState, state_tx: watch::Sender<AppState>) -> Self {
         Self {
-            egui_context,
             app_state,
             state_tx,
-            ui_message_rx,
-            log_packet_rx,
         }
     }
 
     pub fn update_app_state(&mut self, state: State) {
         self.app_state.state = state;
         let _ = self.state_tx.send(self.app_state.clone());
-        self.egui_context.request_repaint();
     }
 
     pub fn update_capturing_state(&mut self, capturing: bool) {
         self.app_state.capturing = capturing;
         let _ = self.state_tx.send(self.app_state.clone());
-        self.egui_context.request_repaint();
     }
 
-    pub fn update_data_updated_state(&mut self, data_updated: DataUpdated) {
-        self.app_state.updated = data_updated;
+    pub fn update_timestamps(&mut self, updated: DataUpdated) {
+        self.app_state.updated = updated;
         let _ = self.state_tx.send(self.app_state.clone());
-        self.egui_context.request_repaint();
+    }
+}
+
+pub struct Monitor {
+    app_state: AppStateManager,
+    ui_message_rx: mpsc::UnboundedReceiver<Message>,
+    log_packet_rx: watch::Receiver<bool>,
+    player_data: PlayerData,
+    sniffer: GameSniffer,
+    capture_cancel_token: Option<CancellationToken>,
+    packet_tx: mpsc::UnboundedSender<Packet>,
+    packet_rx: mpsc::UnboundedReceiver<Packet>,
+}
+
+impl Monitor {
+    pub async fn new(
+        state_tx: watch::Sender<AppState>,
+        mut ui_message_rx: mpsc::UnboundedReceiver<Message>,
+        log_packet_rx: watch::Receiver<bool>,
+    ) -> Result<Self> {
+        let mut app_state = AppStateManager::new(state_tx.borrow().clone(), state_tx.clone());
+        let game_data = get_database(&mut app_state, &mut ui_message_rx).await?;
+        let player_data = PlayerData::new(game_data);
+        let keys = load_keys()?;
+        let sniffer = GameSniffer::new().set_initial_keys(keys);
+        let (packet_tx, packet_rx) = mpsc::unbounded_channel();
+
+        Ok(Self {
+            app_state,
+            player_data,
+            ui_message_rx,
+            log_packet_rx,
+            sniffer,
+            capture_cancel_token: None,
+            packet_tx,
+            packet_rx,
+        })
     }
 
     pub async fn run(mut self) {
-        let game_data = Arc::new(self.get_database().await.unwrap());
-
-        self.update_app_state(State::Main);
+        self.app_state.update_app_state(State::Main);
 
         loop {
-            // Wait for request to start capture.
-            self.update_capturing_state(false);
-            if !matches!(self.ui_message_rx.recv().await, Some(Message::StartCapture)) {
-                continue;
-            }
-
-            // Spawn capture task.
-            self.app_state.updated = Default::default();
-            self.update_capturing_state(true);
-            let cancel_token = CancellationToken::new();
-            let (data_updated_tx, mut data_updated_rx) = mpsc::unbounded_channel();
-            let (export_request_tx, export_request_rx) = mpsc::unbounded_channel();
-            let mut capture_join_handle = tokio::spawn(capture_task(
-                cancel_token.clone(),
-                export_request_rx,
-                self.log_packet_rx.clone(),
-                data_updated_tx,
-                game_data.clone(),
-            ));
-
-            let ret = loop {
-                #[rustfmt::skip]
+            #[rustfmt::skip]
                 tokio::select! {
-                    // If capture task exits, continue to non-capturing state.
-                    ret = &mut capture_join_handle => {
-                        break ret;
-                    },
-
-                    // Forward data updated state to app state.
-                    Some(data_updated) = data_updated_rx.recv() => {
-                        self.update_data_updated_state(data_updated);
-                    }
-
-                    // On request to stop capture, send cancel request to capture task.
-                    Some(msg) = self.ui_message_rx.recv() => {
-                        match msg {
-                            Message::StopCapture => cancel_token.cancel(),
-                            Message::ExportGenshinOptimizer(settings, reply_tx) => {
-                                let _ = export_request_tx.send((settings, reply_tx));
-                            }
-                            _ => (),
-                        }
-                    }
+                    Some(packet) = self.packet_rx.recv() => self.handle_packet(packet),
+                    Some(msg) = self.ui_message_rx.recv() => self.handle_ui_msg(msg),
                 }
-            };
+        }
+    }
 
-            let ret = match ret {
-                Ok(ret) => ret,
-                Err(e) => {
-                    tracing::error!("Join error on capture task: {e}");
-                    continue;
+    fn handle_ui_msg(&mut self, msg: Message) {
+        match msg {
+            Message::StartCapture => {
+                if self.capture_cancel_token.is_some() {
+                    tracing::warn!("Capture start request with an existing cancel token");
                 }
-            };
 
-            if let Err(e) = ret {
-                tracing::error!("Capture task terminated with error: {e}");
+                // Spawn capture task.
+                let cancel_token = CancellationToken::new();
+                tokio::spawn(capture_task(cancel_token.clone(), self.packet_tx.clone()));
+                self.capture_cancel_token = Some(cancel_token);
+                self.app_state.update_capturing_state(true);
+            }
+            Message::StopCapture => {
+                let Some(cancel_token) = self.capture_cancel_token.take() else {
+                    tracing::warn!("Capture stop request with no current cancel token");
+                    return;
+                };
+                cancel_token.cancel();
+                self.app_state.update_capturing_state(false);
+            }
+            Message::ExportGenshinOptimizer(settings, reply_tx) => {
+                let _ = reply_tx.send(self.player_data.export_genshin_optimizer(&settings));
+            }
+            _ => (),
+        }
+    }
+
+    fn handle_packet(&mut self, packet: Packet) {
+        let Some(GamePacket::Commands(commands)) =
+            self.sniffer.receive_packet(packet.payload.to_vec().clone())
+        else {
+            return;
+        };
+
+        let log_packets = *self.log_packet_rx.borrow_and_update();
+
+        let mut updated = self.app_state.app_state.updated.clone();
+        let mut has_new_data = false;
+
+        for command in commands {
+            let _span = tracing::info_span!("packet id {}", command.command_id);
+            if log_packets {
+                if let Err(e) = log_command(&command) {
+                    tracing::info!("error logging command {e}");
+                }
+            }
+            if let Some(items) = matches_item_packet(&command) {
+                tracing::info!("Found item packet with {} items", items.len());
+                self.player_data.process_items(&items);
+                updated.items_updated = Some(Instant::now());
+                has_new_data = true;
+            } else if let Some(avatars) = matches_avatar_packet(&command) {
+                tracing::info!("Found avatar packet with {} avatars", avatars.len());
+                self.player_data.process_characters(&avatars);
+                updated.characters_updated = Some(Instant::now());
+                has_new_data = true;
+            } else if let Some(achievements) = matches_achievement_packet(&command) {
+                tracing::info!(
+                    "Found achievement packet with {} achievements",
+                    achievements.len()
+                );
+                self.player_data.process_achievements(&achievements);
+                updated.achievements_updated = Some(Instant::now());
+                has_new_data = true;
+            }
+        }
+
+        if has_new_data {
+            self.app_state.update_timestamps(updated);
+        }
+    }
+}
+
+async fn get_database(
+    app_state: &mut AppStateManager,
+    ui_message_rx: &mut mpsc::UnboundedReceiver<Message>,
+) -> Result<AnimeGameData> {
+    app_state.update_app_state(State::CheckingForData);
+
+    let mut storage_dir = eframe::storage_dir(APP_ID).unwrap();
+    storage_dir.push("data_cache.json");
+
+    let mut db = anime_game_data::AnimeGameData::new_with_cache(&storage_dir).unwrap();
+    if db.needs_update().await.unwrap() {
+        let confirmation_type = if db.has_data() {
+            ConfirmationType::Update
+        } else {
+            ConfirmationType::Initial
+        };
+        app_state.update_app_state(State::WaitingForDownloadConfirmation(confirmation_type));
+
+        while let Some(msg) = ui_message_rx.recv().await {
+            if matches!(msg, Message::DownloadAcknowledged) {
+                app_state.update_app_state(State::Downloading);
+                db.update().await.unwrap();
+                break;
             }
         }
     }
 
-    async fn get_database(&mut self) -> Result<AnimeGameData> {
-        self.update_app_state(State::CheckingForData);
-
-        let mut storage_dir = eframe::storage_dir(APP_ID).unwrap();
-        storage_dir.push("data_cache.json");
-
-        let mut db = anime_game_data::AnimeGameData::new_with_cache(&storage_dir).unwrap();
-        if db.needs_update().await.unwrap() {
-            let confirmation_type = if db.has_data() {
-                ConfirmationType::Update
-            } else {
-                ConfirmationType::Initial
-            };
-            self.update_app_state(State::WaitingForDownloadConfirmation(confirmation_type));
-
-            while let Some(msg) = self.ui_message_rx.recv().await {
-                if matches!(msg, Message::DownloadAcknowledged) {
-                    self.update_app_state(State::Downloading);
-                    db.update().await.unwrap();
-                    break;
-                }
-            }
-        }
-
-        Ok(db)
-    }
+    Ok(db)
 }
 
 async fn capture_task(
     cancel_token: CancellationToken,
-    mut export_request_rx: mpsc::UnboundedReceiver<(
-        ExportSettings,
-        oneshot::Sender<Result<String>>,
-    )>,
-    mut log_packets_rx: watch::Receiver<bool>,
-    data_updated_tx: mpsc::UnboundedSender<DataUpdated>,
-    game_data: Arc<AnimeGameData>,
+    packet_tx: mpsc::UnboundedSender<Packet>,
 ) -> Result<()> {
-    let mut player_data = PlayerData::new(&game_data);
-    let mut updated = DataUpdated::new();
-
     let mut capture =
         PacketCapture::new().map_err(|e| anyhow!("Error creating packet capture: {e}"))?;
-    let keys = load_keys()?;
-    let mut sniffer = GameSniffer::new().set_initial_keys(keys);
-
     tracing::info!("starting capture");
     loop {
         let packet = tokio::select!(
             packet = capture.next_packet() => packet,
-            Some((settings, reply_tx)) = export_request_rx.recv() => {
-                let _ = reply_tx.send(player_data.export_genshin_optimizer(&settings));
-                continue;
-            }
             _ = cancel_token.cancelled() => break,
         );
         let packet = match packet {
@@ -192,49 +220,8 @@ async fn capture_task(
             }
         };
 
-        // TODO: Why does sniffer.receive_packet not take a reference to the packet?
-        let Some(GamePacket::Commands(commands)) =
-            sniffer.receive_packet(packet.payload.to_vec().clone())
-        else {
-            continue;
-        };
-        let log_packets = *log_packets_rx.borrow_and_update();
-
-        let mut has_new_data = false;
-        for command in commands {
-            let span = tracing::info_span!("packet id {}", command.command_id);
-            if log_packets {
-                if let Err(e) = log_command(&command) {
-                    tracing::info!("error logging command {e}");
-                }
-            }
-            let _trace = span.enter();
-
-            if let Some(items) = matches_item_packet(&command) {
-                tracing::info!("Found item packet with {} items", items.len());
-                player_data.process_items(&items);
-                updated.items_updated = Some(Instant::now());
-                has_new_data = true;
-            } else if let Some(avatars) = matches_avatar_packet(&command) {
-                tracing::info!("Found avatar packet with {} avatars", avatars.len());
-                player_data.process_characters(&avatars);
-                updated.characters_updated = Some(Instant::now());
-                has_new_data = true;
-            } else if let Some(achievements) = matches_achievement_packet(&command) {
-                tracing::info!(
-                    "Found achievement packet with {} achievements",
-                    achievements.len()
-                );
-                player_data.process_achievements(&achievements);
-                updated.achievements_updated = Some(Instant::now());
-                has_new_data = true;
-            }
-        }
-
-        if has_new_data {
-            if let Err(e) = data_updated_tx.send(updated.clone()) {
-                tracing::error!("Error sending data updated status: {e}");
-            }
+        if let Err(e) = packet_tx.send(packet) {
+            tracing::error!("Error sending captured packet to monitor: {e}");
         }
     }
     tracing::info!("ending capture");
