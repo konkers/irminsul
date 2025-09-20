@@ -3,7 +3,7 @@
 # Resources
 
 - [Docs](https://konkers.github.io/irminsul)
-- [Discord](https://discord.gg/sPdCbNbWzJ)
+- [Discord](https://discord.gg/2BkvBKbt)
 
 # Introduction
 
