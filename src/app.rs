@@ -263,6 +263,28 @@ impl eframe::App for IrminsulApp {
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
                 ui.horizontal(|ui| {
+                    let discord_icon = egui::include_image!("../assets/discord.svg");
+                    if ui
+                        .add(
+                            Button::image(discord_icon)
+                                .frame(false)
+                                .image_tint_follows_text_color(true),
+                        )
+                        .clicked()
+                    {
+                        ui.ctx()
+                            .open_url(OpenUrl::new_tab("https://discord.gg/sPdCbNbWzJ"));
+                    }
+
+                    use egui::special_emojis::GITHUB;
+                    if ui
+                        .add(Button::new(RichText::new(GITHUB).size(16.)).frame(false))
+                        .clicked()
+                    {
+                        ui.ctx()
+                            .open_url(OpenUrl::new_tab("https://github.com/konkers/irminsul"));
+                    }
+
                     let button = ui.add(
                         Button::new(
                             RichText::new(egui_material_icons::icons::ICON_BUG_REPORT).size(16.),
