@@ -1,5 +1,9 @@
 # Quickstart
 
+## Download Irminsul
+
+The latest Irminsul release can always be found on the [Irminsul GitHub Released Page](https://github.com/konkers/irminsul/releases). Make sure to grab `irminsul.exe` and not either of the "Source code" archives.
+
 ## Launch Irminsul and accept admin privaleges
 
 Irminsul needs to be running and capturing packets before you enter the door into the main game. The simplest way to accomplish this is to launch Irminsul before launching Genshin
