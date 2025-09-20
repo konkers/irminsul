@@ -6,6 +6,7 @@ use std::thread;
 use std::time::Instant;
 
 use anyhow::{Context as _, Result, anyhow};
+use chrono::Local;
 use egui::{
     Button, Color32, Context, DragValue, Id, Key, KeyboardShortcut, Modal, Modifiers, OpenUrl,
     PointerButton, RichText, Sense, ViewportCommand,
@@ -73,7 +74,7 @@ pub struct IrminsulApp {
 
     optimizer_settings_open: bool,
     optimizer_export_rx: Option<oneshot::Receiver<Result<String>>>,
-    optimizer_save_dialog: FileDialog,
+    optimizer_save_dialog: Option<FileDialog>,
     optimizer_save_path: Option<PathBuf>,
     optimizer_export_target: OptimizerExportTarget,
 
@@ -161,10 +162,6 @@ impl IrminsulApp {
             }
         }
 
-        let optimizer_save_dialog = FileDialog::new()
-            .add_file_filter_extensions("JSON files", vec!["json"])
-            .default_file_name("genshin_export.json");
-
         let toasts = Toasts::default().with_anchor(egui_notify::Anchor::BottomLeft);
 
         Self {
@@ -177,7 +174,7 @@ impl IrminsulApp {
             capture_settings_open: false,
             optimizer_settings_open: false,
             optimizer_export_rx: None,
-            optimizer_save_dialog,
+            optimizer_save_dialog: None,
             optimizer_save_path: None,
             optimizer_export_target: OptimizerExportTarget::None,
             restarting: false,
@@ -195,7 +192,10 @@ impl eframe::App for IrminsulApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.toasts.show(ctx);
-        self.optimizer_save_dialog.update(ctx);
+        if let Some(optimizer_save_dialog) = &mut self.optimizer_save_dialog {
+            optimizer_save_dialog.update(ctx);
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                 egui::Image::new(egui::include_image!("../assets/background.webp"))
@@ -516,10 +516,20 @@ impl IrminsulApp {
                                 .button(egui_material_icons::icons::ICON_DOWNLOAD)
                                 .clicked()
                             {
-                                self.optimizer_save_dialog.save_file();
+                                let now = Local::now();
+                                let mut optimizer_save_dialog = FileDialog::new()
+                                    .add_file_filter_extensions("JSON files", vec!["json"])
+                                    .default_file_name(&format!(
+                                        "genshin_export_{}.json",
+                                        now.format("%Y-%m-%d_%H-%M")
+                                    ));
+                                optimizer_save_dialog.save_file();
+                                self.optimizer_save_dialog = Some(optimizer_save_dialog);
                             }
 
-                            if let Some(path) = self.optimizer_save_dialog.take_picked() {
+                            if let Some(optimizer_save_dialog) = &mut self.optimizer_save_dialog
+                                && let Some(path) = optimizer_save_dialog.take_picked()
+                            {
                                 self.optimizer_save_path = Some(path);
                                 self.genshin_optimizer_request_export(OptimizerExportTarget::File);
                             }
