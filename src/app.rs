@@ -19,7 +19,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 use crate::monitor::Monitor;
 use crate::player_data::ExportSettings;
 use crate::update::check_for_app_update;
-use crate::{AppState, ConfirmationType, Message, State, open_log_dir};
+use crate::{AppState, ConfirmationType, Message, ReloadHandle, State, TracingLevel, open_log_dir};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SavedAppState {
@@ -27,6 +27,8 @@ pub struct SavedAppState {
     #[serde(default)]
     auto_start_capture: bool,
     log_raw_packets: bool,
+    #[serde(default)]
+    tracing_level: TracingLevel,
 }
 
 impl Default for SavedAppState {
@@ -49,6 +51,7 @@ impl Default for SavedAppState {
             },
             auto_start_capture: false,
             log_raw_packets: false,
+            tracing_level: Default::default(),
         }
     }
 }
@@ -64,6 +67,7 @@ pub struct IrminsulApp {
     ui_message_tx: mpsc::UnboundedSender<Message>,
     state_rx: watch::Receiver<AppState>,
     log_packets_tx: watch::Sender<bool>,
+    tracing_reload_handle: ReloadHandle,
 
     toasts: Toasts,
 
@@ -143,7 +147,7 @@ fn start_async_runtime(
 }
 
 impl IrminsulApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, mut tracing_reload_handle: ReloadHandle) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         egui_material_icons::initialize(&cc.egui_ctx);
 
@@ -153,6 +157,7 @@ impl IrminsulApp {
             Default::default()
         };
 
+        tracing_reload_handle.set_filter(saved_state.tracing_level.get_filter());
         let (log_packets_tx, log_packets_rx) = watch::channel(saved_state.log_raw_packets);
         let (ui_message_tx, state_rx) = start_async_runtime(cc.egui_ctx.clone(), log_packets_rx);
 
@@ -168,6 +173,7 @@ impl IrminsulApp {
             saved_state,
             ui_message_tx,
             log_packets_tx,
+            tracing_reload_handle,
             toasts,
             power_tools_open: false,
             bug_report_open: false,
@@ -569,6 +575,36 @@ impl IrminsulApp {
         {
             let _ = self.log_packets_tx.send(self.saved_state.log_raw_packets);
         };
+        let prev_level = self.saved_state.tracing_level;
+        egui::ComboBox::from_label("Logging Level")
+            .selected_text(format!("{}", self.saved_state.tracing_level))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(
+                    &mut self.saved_state.tracing_level,
+                    TracingLevel::Default,
+                    "Default",
+                );
+                ui.selectable_value(
+                    &mut self.saved_state.tracing_level,
+                    TracingLevel::VerboseInfo,
+                    "Verbose Info",
+                );
+                ui.selectable_value(
+                    &mut self.saved_state.tracing_level,
+                    TracingLevel::VerboseDebug,
+                    "Verbose Debug",
+                );
+                ui.selectable_value(
+                    &mut self.saved_state.tracing_level,
+                    TracingLevel::VerboseTrace,
+                    "Verbose Trace",
+                );
+            });
+        if prev_level != self.saved_state.tracing_level {
+            self.tracing_reload_handle
+                .set_filter(self.saved_state.tracing_level.get_filter());
+        }
+        ui.end_row();
         ui.separator();
         egui::Sides::new().show(
             ui,

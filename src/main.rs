@@ -1,12 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use std::fmt::Display;
 use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::{Parser, command};
+use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 use tracing_appender::rolling::Rotation;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{EnvFilter, reload};
 
 use crate::player_data::ExportSettings;
 
@@ -95,8 +99,62 @@ struct Args {
     #[arg(long, default_value_t = false)]
     no_admin: bool,
 }
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum TracingLevel {
+    Default,
+    VerboseInfo,
+    VerboseDebug,
+    VerboseTrace,
+}
+
+impl Default for TracingLevel {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
+impl Display for TracingLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TracingLevel::Default => write!(f, "Default"),
+            TracingLevel::VerboseInfo => write!(f, "Verbose Info"),
+            TracingLevel::VerboseDebug => write!(f, "Verbose Debug"),
+            TracingLevel::VerboseTrace => write!(f, "Verbose Trace"),
+        }
+    }
+}
+
+impl TracingLevel {
+    fn get_filter(&self) -> &'static str {
+        match self {
+            TracingLevel::Default => {
+                if cfg!(debug_assertions) {
+                    "info"
+                } else {
+                    "warn,irminsul=info"
+                }
+            }
+            TracingLevel::VerboseInfo => "info",
+            TracingLevel::VerboseDebug => "debug",
+            TracingLevel::VerboseTrace => "trace",
+        }
+    }
+}
+
+struct ReloadHandle(reload::Handle<EnvFilter, tracing_subscriber::Registry>);
+
+impl ReloadHandle {
+    pub fn set_filter(&mut self, filter: &str) {
+        if let Err(e) = self.0.reload(filter) {
+            tracing::warn!("Failed to set tracing filter to \"{filter}\": {e}");
+        }
+        tracing::info!("Set tracing filter to \"{filter}\"");
+    }
+}
+
 fn main() -> eframe::Result {
-    let _guard = tracing_init().unwrap();
+    let (_guard, reload_handle) = tracing_init().unwrap();
 
     let args = Args::parse();
 
@@ -123,7 +181,7 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Irminsul",
         native_options,
-        Box::new(|cc| Ok(Box::new(app::IrminsulApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(app::IrminsulApp::new(cc, reload_handle)))),
     )
 }
 
@@ -146,7 +204,7 @@ fn open_log_dir() -> Result<()> {
     Ok(())
 }
 
-fn tracing_init() -> Result<tracing_appender::non_blocking::WorkerGuard> {
+fn tracing_init() -> Result<(tracing_appender::non_blocking::WorkerGuard, ReloadHandle)> {
     let appender = tracing_appender::rolling::Builder::new()
         .filename_prefix("log")
         .rotation(Rotation::DAILY)
@@ -154,18 +212,16 @@ fn tracing_init() -> Result<tracing_appender::non_blocking::WorkerGuard> {
         .build(log_dir()?)?;
     let (non_blocking_appender, guard) = tracing_appender::non_blocking(appender);
 
-    let filter = if cfg!(debug_assertions) {
-        "info"
-    } else {
-        "warn,irminsul=info"
-    };
-
-    tracing_subscriber::fmt()
+    let filter = EnvFilter::new(TracingLevel::default().get_filter());
+    let (filter, reload_handle) = reload::Layer::new(filter);
+    let writer = tracing_subscriber::fmt::layer()
         .with_writer(non_blocking_appender)
-        .with_env_filter(filter)
-        .with_ansi(false)
+        .with_ansi(false);
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(writer)
         .init();
     tracing::info!("Tracing initialized and logging to file.");
 
-    Ok(guard)
+    Ok((guard, ReloadHandle(reload_handle)))
 }
