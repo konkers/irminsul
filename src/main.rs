@@ -101,18 +101,13 @@ struct Args {
     no_admin: bool,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, Default)]
 pub enum TracingLevel {
+    #[default]
     Default,
     VerboseInfo,
     VerboseDebug,
     VerboseTrace,
-}
-
-impl Default for TracingLevel {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 impl Display for TracingLevel {
