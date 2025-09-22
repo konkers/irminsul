@@ -2247,7 +2247,6 @@ version = "0.1.7"
 dependencies = [
  "anime-game-data",
  "anyhow",
- "arboard",
  "auto-artifactarium",
  "base64",
  "chrono",
@@ -2265,6 +2264,7 @@ dependencies = [
  "indexmap",
  "log",
  "pktmon",
+ "regex",
  "reqwest",
  "self_update",
  "serde",
