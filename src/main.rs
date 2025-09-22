@@ -21,6 +21,7 @@ mod good;
 mod monitor;
 mod player_data;
 mod update;
+mod wish;
 
 const APP_ID: &str = "Irminsul";
 

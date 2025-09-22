@@ -19,7 +19,9 @@ use tokio::sync::{mpsc, oneshot, watch};
 use crate::monitor::Monitor;
 use crate::player_data::ExportSettings;
 use crate::update::check_for_app_update;
-use crate::{AppState, ConfirmationType, Message, ReloadHandle, State, TracingLevel, open_log_dir};
+use crate::{
+    AppState, ConfirmationType, Message, ReloadHandle, State, TracingLevel, open_log_dir, wish,
+};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SavedAppState {
@@ -66,6 +68,7 @@ enum OptimizerExportTarget {
 pub struct IrminsulApp {
     ui_message_tx: mpsc::UnboundedSender<Message>,
     state_rx: watch::Receiver<AppState>,
+    wish_url_rx: watch::Receiver<Option<String>>,
     log_packets_tx: watch::Sender<bool>,
     tracing_reload_handle: ReloadHandle,
 
@@ -107,11 +110,16 @@ impl<T, E: Display> ToastError<T> for std::result::Result<T, E> {
 fn start_async_runtime(
     egui_ctx: Context,
     log_packets_rx: watch::Receiver<bool>,
-) -> (mpsc::UnboundedSender<Message>, watch::Receiver<AppState>) {
+) -> (
+    mpsc::UnboundedSender<Message>,
+    watch::Receiver<AppState>,
+    watch::Receiver<Option<String>>,
+) {
     tracing::info!("starting tokio async");
     let (ui_message_tx, mut ui_message_rx) = mpsc::unbounded_channel::<Message>();
 
     let (state_tx, state_rx) = watch::channel(AppState::new());
+    let (wish_url_tx, wish_url_rx) = watch::channel(None);
     let mut updater_state_rx = state_rx.clone();
     let updater_ctx = egui_ctx.clone();
     thread::spawn(|| {
@@ -123,6 +131,18 @@ fn start_async_runtime(
             if let Err(e) = check_for_app_update(&state_tx, &mut ui_message_rx).await {
                 tracing::error!("error checking for update: {e}");
             }
+
+            // Check for wish URL
+            tokio::spawn(async move {
+                let url = match wish::get_url().await {
+                    Ok(url) => url,
+                    Err(e) => {
+                        tracing::error!("Could not find wish url: {e}");
+                        return;
+                    }
+                };
+                let _ = wish_url_tx.send(Some(url));
+            });
 
             // Notify egui of state changes.
             tokio::spawn(async move {
@@ -143,7 +163,7 @@ fn start_async_runtime(
         });
     });
     tracing::info!("started tokio");
-    (ui_message_tx, state_rx)
+    (ui_message_tx, state_rx, wish_url_rx)
 }
 
 impl IrminsulApp {
@@ -159,7 +179,8 @@ impl IrminsulApp {
 
         tracing_reload_handle.set_filter(saved_state.tracing_level.get_filter());
         let (log_packets_tx, log_packets_rx) = watch::channel(saved_state.log_raw_packets);
-        let (ui_message_tx, state_rx) = start_async_runtime(cc.egui_ctx.clone(), log_packets_rx);
+        let (ui_message_tx, state_rx, wish_url_rx) =
+            start_async_runtime(cc.egui_ctx.clone(), log_packets_rx);
 
         if saved_state.auto_start_capture {
             if let Err(e) = ui_message_tx.send(Message::StartCapture) {
@@ -185,6 +206,7 @@ impl IrminsulApp {
             optimizer_export_target: OptimizerExportTarget::None,
             restarting: false,
             state_rx,
+            wish_url_rx,
         }
     }
 }
@@ -197,6 +219,11 @@ impl eframe::App for IrminsulApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.style_mut(|style| {
+            style.interaction.selectable_labels = false;
+            style.interaction.tooltip_delay = 0.25;
+        });
+
         self.toasts.show(ctx);
         if let Some(optimizer_save_dialog) = &mut self.optimizer_save_dialog {
             optimizer_save_dialog.update(ctx);
@@ -443,6 +470,8 @@ impl IrminsulApp {
         ui.separator();
         self.genshin_optimizer_ui(ui, app_state);
         ui.separator();
+        self.wish_ui(ui);
+        ui.separator();
         self.achievement_ui(ui, app_state);
     }
 
@@ -497,7 +526,7 @@ impl IrminsulApp {
     }
 
     fn genshin_optimizer_ui(&mut self, ui: &mut egui::Ui, app_state: &AppState) {
-        self.optimizer_handle_export().toast_error(self);
+        self.optimizer_handle_export(ui).toast_error(self);
 
         ui.vertical(|ui| {
             egui::Sides::new().show(
@@ -563,6 +592,34 @@ impl IrminsulApp {
         ));
         self.optimizer_export_target = target;
         self.optimizer_export_rx = Some(rx);
+    }
+
+    fn wish_ui(&mut self, ui: &mut egui::Ui) {
+        self.optimizer_handle_export(ui).toast_error(self);
+
+        let wish_url = self.wish_url_rx.borrow_and_update().clone();
+        ui.vertical(|ui| {
+            egui::Sides::new().show(
+                ui,
+                |ui| {
+                    Self::section_header(ui, "Wish History");
+                    ui.label(egui_material_icons::icons::ICON_HELP)
+                        .on_hover_text("Click the Copy icon to copy the wish URL to the clipboard.  Paste this into paimon.moe using the Manual auto-import method.");
+                },
+                |ui| {
+                    ui.add_enabled_ui(wish_url.is_some(), |ui| {
+                        if ui
+                            .button(egui_material_icons::icons::ICON_CONTENT_PASTE_GO)
+                            .clicked()
+                        {
+                            if let Some(url) = wish_url {
+                                ui.ctx().copy_text(url);
+                            }
+                        }
+                    });
+                },
+            );
+        });
     }
 
     fn power_tools_modal(&mut self, ui: &mut egui::Ui) {
@@ -779,7 +836,7 @@ impl IrminsulApp {
         );
     }
 
-    fn optimizer_handle_export(&mut self) -> Result<()> {
+    fn optimizer_handle_export(&mut self, ui: &mut egui::Ui) -> Result<()> {
         let Some(rx) = self.optimizer_export_rx.take() else {
             return Ok(());
         };
@@ -791,7 +848,7 @@ impl IrminsulApp {
                 tracing::warn!("Unexpected json export");
             }
             OptimizerExportTarget::Clipboard => {
-                self.optimizer_save_to_clipboard(json)?;
+                self.optimizer_save_to_clipboard(ui, json)?;
             }
             OptimizerExportTarget::File => {
                 self.optimizer_save_to_file(json)?;
@@ -802,10 +859,8 @@ impl IrminsulApp {
         Ok(())
     }
 
-    fn optimizer_save_to_clipboard(&mut self, json: String) -> Result<()> {
-        arboard::Clipboard::new()
-            .and_then(|mut c| c.set_text(json.clone()))
-            .context("Error copying data to clipboard")?;
+    fn optimizer_save_to_clipboard(&mut self, ui: &mut egui::Ui, json: String) -> Result<()> {
+        ui.ctx().copy_text(json);
         self.toasts
             .info("Genshin Optimizer data copied to clipboard");
         Ok(())
