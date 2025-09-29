@@ -306,7 +306,7 @@ impl eframe::App for IrminsulApp {
                         .clicked()
                     {
                         ui.ctx()
-                            .open_url(OpenUrl::new_tab("https://discord.gg/2BkvBKbt"));
+                            .open_url(OpenUrl::new_tab("https://discord.gg/aQqdZPHEpP"));
                     }
 
                     use egui::special_emojis::GITHUB;
