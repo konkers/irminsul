@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Substat {
     pub key: String,
     pub value: f32,
@@ -10,27 +11,21 @@ pub struct Substat {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Artifact {
-    #[serde(rename = "setKey")]
     pub set_key: String,
-    #[serde(rename = "slotKey")]
     pub slot_key: String,
     pub level: u32,
     pub rarity: u32,
-    #[serde(rename = "mainStatKey")]
     pub main_stat_key: String,
     pub location: String,
     pub lock: bool,
     pub substats: Vec<Substat>,
 
     // GOOD v3 fields.
-    #[serde(rename = "totalRolls")]
     pub total_rolls: u32,
-    #[serde(rename = "astralMark")]
     pub astral_mark: bool,
-    #[serde(rename = "elixerCrafted")]
     pub elixer_crafted: bool,
-    #[serde(rename = "unactivatedSubstats")]
     pub unactivated_substats: Vec<Substat>,
 }
 
