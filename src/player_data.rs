@@ -7,7 +7,7 @@ pub use auto_artifactarium::r#gen::protos::{AvatarInfo, Item};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::good;
+use crate::good::{self, fake_uninitialized_4th_line};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ExportSettings {
@@ -15,6 +15,7 @@ pub struct ExportSettings {
     pub include_artifacts: bool,
     pub include_weapons: bool,
     pub include_materials: bool,
+    pub fake_initialize_4th_line: bool,
 
     pub min_character_level: u32,
     pub min_character_ascension: u32,
@@ -84,7 +85,12 @@ impl PlayerData {
         }
 
         if settings.include_artifacts {
-            good.artifacts = self.export_genshin_optimizer_artifacts(settings);
+            good.artifacts = if settings.fake_initialize_4th_line {
+                let artifacts = self.export_genshin_optimizer_artifacts(settings);
+                fake_uninitialized_4th_line(artifacts)
+            } else {
+                self.export_genshin_optimizer_artifacts(settings)
+            };
         }
 
         if settings.include_weapons {
