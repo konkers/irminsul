@@ -180,7 +180,7 @@ async fn get_database(
     storage_dir.push("data_cache.json");
 
     let mut db = anime_game_data::AnimeGameData::new_with_cache(&storage_dir).unwrap();
-    if db.needs_update().await.unwrap() {
+    if db.needs_update().await? {
         let confirmation_type = if db.has_data() {
             ConfirmationType::Update
         } else {
@@ -191,7 +191,7 @@ async fn get_database(
         while let Some(msg) = ui_message_rx.recv().await {
             if matches!(msg, Message::DownloadAcknowledged) {
                 app_state.update_app_state(State::Downloading);
-                db.update().await.unwrap();
+                db.update().await?;
                 break;
             }
         }
