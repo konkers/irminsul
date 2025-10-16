@@ -135,14 +135,14 @@ fn start_async_runtime(
 
             // Check for wish URL
             tokio::spawn(async move {
-                let url = match wish::get_url().await {
-                    Ok(url) => url,
-                    Err(e) => {
-                        tracing::error!("Could not find wish url: {e}");
-                        return;
-                    }
+                let Ok(mut wish) = wish::Wish::new(wish_url_tx).await else {
+                    tracing::error!("Failed to create new wish monitor");
+                    return;
                 };
-                let _ = wish_url_tx.send(Some(url));
+
+                if let Err(e) = wish.monitor().await {
+                    tracing::error!("Error monitoring for wishes: {e}");
+                }
             });
 
             // Notify egui of state changes.
