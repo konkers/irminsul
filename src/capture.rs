@@ -1,6 +1,6 @@
-use std::error::Error;
 use std::fmt::{Debug, Display};
 
+use anyhow::Error;
 use futures::StreamExt;
 use futures::stream::FusedStream;
 use pktmon::filter::{PktMonFilter, TransportProtocol};
@@ -11,30 +11,26 @@ pub const PORT_RANGE: (u16, u16) = (22101, 22102);
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum CaptureError {
-    Filter(Box<dyn Error>),
-    Capture {
-        has_captured: bool,
-        error: Box<dyn Error>,
-    },
+    Filter(Error),
+    Capture { has_captured: bool, error: Error },
     CaptureClosed,
     ChannelClosed,
 }
 
 impl Display for CaptureError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if matches!(self, CaptureError::ChannelClosed) {
-            write!(f, "Channel closed")
-        } else {
-            write!(f, "{:?}", self.source())
-        }
-    }
-}
-
-impl Error for CaptureError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            CaptureError::Filter(e) => Some(e.as_ref()),
-            _ => None,
+            CaptureError::Filter(e) => write!(f, "Filter error: {}", e),
+            CaptureError::Capture {
+                has_captured,
+                error,
+            } => write!(
+                f,
+                "Capture error (has_captured = {}): {}",
+                has_captured, error
+            ),
+            CaptureError::CaptureClosed => write!(f, "Capture closed"),
+            CaptureError::ChannelClosed => write!(f, "Channel closed"),
         }
     }
 }
@@ -49,7 +45,7 @@ impl PacketCapture {
     pub fn new() -> Result<Self> {
         let mut capture = Capture::new().map_err(|e| CaptureError::Capture {
             has_captured: false,
-            error: Box::new(e),
+            error: e.into(),
         })?;
 
         let filter = PktMonFilter {
@@ -61,7 +57,7 @@ impl PacketCapture {
 
         capture
             .add_filter(filter)
-            .map_err(|e| CaptureError::Filter(Box::new(e)))?;
+            .map_err(|e| CaptureError::Filter(e.into()))?;
 
         let filter = PktMonFilter {
             name: "UDP Filter".to_string(),
@@ -72,7 +68,7 @@ impl PacketCapture {
 
         capture
             .add_filter(filter)
-            .map_err(|e| CaptureError::Filter(Box::new(e)))?;
+            .map_err(|e| CaptureError::Filter(e.into()))?;
 
         Ok(Self {
             stream: Box::new(capture.stream().unwrap().boxed().fuse()),
