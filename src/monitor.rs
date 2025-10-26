@@ -11,7 +11,6 @@ use auto_artifactarium::{
 };
 use base64::prelude::*;
 use chrono::prelude::*;
-use pktmon::Packet;
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
@@ -55,8 +54,8 @@ pub struct Monitor {
     player_data: PlayerData,
     sniffer: GameSniffer,
     capture_cancel_token: Option<CancellationToken>,
-    packet_tx: mpsc::UnboundedSender<Packet>,
-    packet_rx: mpsc::UnboundedReceiver<Packet>,
+    packet_tx: mpsc::UnboundedSender<Vec<u8>>,
+    packet_rx: mpsc::UnboundedReceiver<Vec<u8>>,
 }
 
 impl Monitor {
@@ -124,10 +123,8 @@ impl Monitor {
         }
     }
 
-    fn handle_packet(&mut self, packet: Packet) {
-        let Some(GamePacket::Commands(commands)) =
-            self.sniffer.receive_packet(packet.payload.to_vec().clone())
-        else {
+    fn handle_packet(&mut self, packet: Vec<u8>) {
+        let Some(GamePacket::Commands(commands)) = self.sniffer.receive_packet(packet) else {
             return;
         };
 
@@ -203,7 +200,7 @@ async fn get_database(
 
 async fn capture_task(
     cancel_token: CancellationToken,
-    packet_tx: mpsc::UnboundedSender<Packet>,
+    packet_tx: mpsc::UnboundedSender<Vec<u8>>,
 ) -> Result<()> {
     let mut capture =
         PacketCapture::new().map_err(|e| anyhow!("Error creating packet capture: {e}"))?;
