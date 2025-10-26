@@ -14,7 +14,7 @@ use chrono::prelude::*;
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
-use crate::capture::PacketCapture;
+use crate::capture::{DEFAULT_CAPTURE_BACKEND_TYPE, create_capture};
 use crate::player_data::PlayerData;
 use crate::{APP_ID, AppState, ConfirmationType, DataUpdated, Message, State};
 
@@ -202,8 +202,9 @@ async fn capture_task(
     cancel_token: CancellationToken,
     packet_tx: mpsc::UnboundedSender<Vec<u8>>,
 ) -> Result<()> {
-    let mut capture =
-        PacketCapture::new().map_err(|e| anyhow!("Error creating packet capture: {e}"))?;
+    // TODO: Allow user to select backend type
+    let mut capture = create_capture(DEFAULT_CAPTURE_BACKEND_TYPE)
+        .map_err(|e| anyhow!("Error creating packet capture: {e}"))?;
     tracing::info!("starting capture");
     loop {
         let packet = tokio::select!(
