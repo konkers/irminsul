@@ -3,9 +3,8 @@ use std::fmt::{Debug, Display};
 
 use futures::StreamExt;
 use futures::stream::FusedStream;
-use pktmon::Capture;
-pub use pktmon::Packet;
 use pktmon::filter::{PktMonFilter, TransportProtocol};
+use pktmon::{Capture, Packet};
 
 pub const PORT_RANGE: (u16, u16) = (22101, 22102);
 
@@ -80,10 +79,10 @@ impl PacketCapture {
         })
     }
 
-    pub async fn next_packet(&mut self) -> Result<Packet> {
+    pub async fn next_packet(&mut self) -> Result<Vec<u8>> {
         futures::select! {
             packet = self.stream.select_next_some() => {
-                Ok(packet)
+                Ok(packet.payload.to_vec().clone())
             },
             complete => Err(CaptureError::CaptureClosed),
         }
