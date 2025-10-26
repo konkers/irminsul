@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result, anyhow};
-use async_watcher::notify::{ReadDirectoryChangesWatcher, RecursiveMode};
+// RecommendedWatcher is ReadDirectoryChangesWatcher on Windows, and INotifyWatcher on Linux
+use async_watcher::notify::{RecommendedWatcher, RecursiveMode};
 use async_watcher::{AsyncDebouncer, DebouncedEvent};
 use regex::Regex;
 use reqwest::Url;
@@ -18,8 +19,8 @@ pub struct Wish {
     url_tx: watch::Sender<Option<String>>,
     output_log_path: PathBuf,
     web_cache_path: Option<PathBuf>,
-    debouncer: AsyncDebouncer<ReadDirectoryChangesWatcher>,
-    file_events: mpsc::Receiver<Result<Vec<DebouncedEvent>, Vec<notify::Error>>>,
+    debouncer: AsyncDebouncer<RecommendedWatcher>,
+    file_events: mpsc::Receiver<Result<Vec<DebouncedEvent>, Vec<async_watcher::notify::Error>>>,
     prev_url: String,
 }
 
