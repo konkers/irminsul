@@ -187,16 +187,9 @@ fn log_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
-#[cfg(windows)]
 fn open_log_dir() -> Result<()> {
-    use std::process::Command;
-
     let dir = log_dir()?;
-
-    let _ = Command::new("explorer.exe")
-        .args([dir.as_os_str()])
-        .output()?;
-
+    open::that(dir)?;
     Ok(())
 }
 
