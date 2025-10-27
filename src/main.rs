@@ -184,6 +184,7 @@ fn main() -> eframe::Result {
 fn log_dir() -> Result<PathBuf> {
     let mut dir = eframe::storage_dir(APP_ID).context("Storage dir not found")?;
     dir.push("log");
+    println!("Log folder: {}", dir.display());
     Ok(dir)
 }
 
