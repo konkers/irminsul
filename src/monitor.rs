@@ -144,10 +144,19 @@ impl Monitor {
                 }
             }
             if let Some(items) = matches_item_packet(&command) {
-                tracing::info!("Found item packet with {} items", items.len());
-                self.player_data.process_items(&items);
-                updated.items_updated = Some(Instant::now());
-                has_new_data = true;
+                if self.player_data.check_num_weapons(&items) >= 6
+                //6 guaranteed different free characters by AR18
+                {
+                    self.player_data.process_items(&items);
+                    tracing::info!("Found item packet with {} items", items.len());
+                    updated.items_updated = Some(Instant::now());
+                    has_new_data = true;
+                } else {
+                    tracing::info!(
+                        "Packet with {} items determined to be false positive. Discarded.",
+                        items.len()
+                    );
+                }
             } else if let Some(avatars) = matches_avatar_packet(&command) {
                 tracing::info!("Found avatar packet with {} avatars", avatars.len());
                 self.player_data.process_characters(&avatars);

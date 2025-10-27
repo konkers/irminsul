@@ -324,4 +324,19 @@ impl PlayerData {
             })
             .collect()
     }
+
+    pub fn check_num_weapons(&self, items: &[Item]) -> u32 {
+        items.iter().fold(0, |agg, item| {
+            if !item.has_equip() {
+                return agg;
+            }
+            let equip = item.equip();
+
+            if !equip.has_weapon() {
+                return agg;
+            }
+
+            return agg + 1;
+        })
+    }
 }
