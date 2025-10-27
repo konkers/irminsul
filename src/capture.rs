@@ -1,3 +1,6 @@
+#[cfg(feature = "pcap")]
+mod pcap_backend;
+
 #[cfg(windows)]
 mod pktmon_backend;
 
@@ -43,9 +46,9 @@ pub trait CaptureBackend: Send {
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 pub enum BackendType {
     Pktmon,
-    #[expect(dead_code)]
     Pcap,
 }
 
@@ -57,15 +60,31 @@ pub const DEFAULT_CAPTURE_BACKEND_TYPE: BackendType = BackendType::Pcap;
 pub fn create_capture(backend: BackendType) -> Result<Box<dyn CaptureBackend>> {
     match backend {
         BackendType::Pktmon => {
-            if cfg!(windows) {
+            #[cfg(windows)]
+            {
                 Ok(Box::new(pktmon_backend::PktmonBackend::new()?))
-            } else {
+            }
+            #[cfg(not(windows))]
+            {
                 Err(CaptureError::Capture {
                     has_captured: false,
                     error: anyhow::anyhow!("Pktmon capture not supported on this operating system"),
                 })
             }
         }
-        BackendType::Pcap => todo!(),
+
+        BackendType::Pcap => {
+            #[cfg(feature = "pcap")]
+            {
+                Ok(Box::new(pcap_backend::PcapBackend::new()?))
+            }
+            #[cfg(not(feature = "pcap"))]
+            {
+                Err(CaptureError::Capture {
+                    has_captured: false,
+                    error: anyhow::anyhow!("Pktmon capture not supported on this build"),
+                })
+            }
+        }
     }
 }
