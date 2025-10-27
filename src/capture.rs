@@ -1,3 +1,4 @@
+mod pcap_backend;
 #[cfg(windows)]
 mod pktmon_backend;
 
@@ -43,6 +44,7 @@ pub trait CaptureBackend: Send {
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 pub enum BackendType {
     Pktmon,
     #[expect(dead_code)]
@@ -66,6 +68,6 @@ pub fn create_capture(backend: BackendType) -> Result<Box<dyn CaptureBackend>> {
                 })
             }
         }
-        BackendType::Pcap => todo!(),
+        BackendType::Pcap => Ok(Box::new(pcap_backend::PcapBackend::new()?)),
     }
 }
