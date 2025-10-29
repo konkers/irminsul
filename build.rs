@@ -8,5 +8,10 @@ fn main() -> io::Result<()> {
             .set_icon("assets/icon.ico")
             .compile()?;
     }
+
+    #[cfg(all(unix, feature = "static-libpcap"))]
+    {
+        println!("cargo:rustc-link-lib=static=pcap");
+    }
     Ok(())
 }

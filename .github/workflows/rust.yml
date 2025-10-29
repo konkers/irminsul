@@ -43,9 +43,9 @@ jobs:
       - run: rustup component add clippy
       - run: cargo check --release
       - run: cargo fmt --check
-      - run: cargo test --release
+      - run: cargo test --release --features static-libpcap
       - run: cargo clippy --release -- -Dwarnings
-      - run: cargo build --release
+      - run: cargo build --release --features static-libpcap
       - if: ${{matrix.artifact_name}}
         name: Upload release artifact
         uses: actions/upload-artifact@v4
