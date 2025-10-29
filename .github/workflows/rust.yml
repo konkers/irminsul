@@ -17,6 +17,9 @@ jobs:
           - os: windows-latest
             artifact_name: ${{ github.event.repository.name }}.exe
             suffix: ".exe"
+          - os: ubuntu-22.04
+            artifact_name: ${{ github.event.repository.name }}
+            suffix: ""
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +31,9 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install libpcap-dev (apt-get)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
       - run: rustup component add clippy
       - run: cargo check --release
       - run: cargo fmt --check
