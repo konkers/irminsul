@@ -66,6 +66,9 @@ windows = { version = "0.61.3", features = [
 	"Win32_UI_Shell",
 ] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.177"
+
 [build-dependencies]
 winresource = "0.1.23"
 
