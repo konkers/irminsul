@@ -20,7 +20,8 @@ use crate::monitor::Monitor;
 use crate::player_data::ExportSettings;
 use crate::update::check_for_app_update;
 use crate::{
-    AppState, ConfirmationType, Message, ReloadHandle, State, TracingLevel, open_log_dir, wish,
+    AppState, ConfirmationType, Message, ReloadHandle, State, TracingLevel, capture, open_log_dir,
+    wish,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -111,6 +112,7 @@ impl<T, E: Display> ToastError<T> for std::result::Result<T, E> {
 fn start_async_runtime(
     egui_ctx: Context,
     log_packets_rx: watch::Receiver<bool>,
+    capture_backend: capture::BackendType,
 ) -> (
     mpsc::UnboundedSender<Message>,
     watch::Receiver<AppState>,
@@ -123,7 +125,7 @@ fn start_async_runtime(
     let (wish_url_tx, wish_url_rx) = watch::channel(None);
     let mut updater_state_rx = state_rx.clone();
     let updater_ctx = egui_ctx.clone();
-    thread::spawn(|| {
+    thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
         rt.block_on(async {
@@ -153,7 +155,14 @@ fn start_async_runtime(
                 }
             });
             tracing::info!("Starting monitor");
-            let monitor = match Monitor::new(state_tx, ui_message_rx, log_packets_rx).await {
+            let monitor = match Monitor::new(
+                state_tx,
+                ui_message_rx,
+                log_packets_rx,
+                capture_backend,
+            )
+            .await
+            {
                 Ok(monitor) => monitor,
                 Err(e) => {
                     tracing::error!("error loading monitor task: {e}");
@@ -168,7 +177,11 @@ fn start_async_runtime(
 }
 
 impl IrminsulApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, mut tracing_reload_handle: ReloadHandle) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        mut tracing_reload_handle: ReloadHandle,
+        capture_backend: capture::BackendType,
+    ) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         egui_material_icons::initialize(&cc.egui_ctx);
 
@@ -181,7 +194,7 @@ impl IrminsulApp {
         tracing_reload_handle.set_filter(saved_state.tracing_level.get_filter());
         let (log_packets_tx, log_packets_rx) = watch::channel(saved_state.log_raw_packets);
         let (ui_message_tx, state_rx, wish_url_rx) =
-            start_async_runtime(cc.egui_ctx.clone(), log_packets_rx);
+            start_async_runtime(cc.egui_ctx.clone(), log_packets_rx, capture_backend);
 
         if saved_state.auto_start_capture {
             if let Err(e) = ui_message_tx.send(Message::StartCapture) {
