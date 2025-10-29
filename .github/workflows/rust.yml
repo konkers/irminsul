@@ -17,6 +17,10 @@ jobs:
           - os: windows-latest
             artifact_name: ${{ github.event.repository.name }}.exe
             suffix: ".exe"
+            # We don't enable pcap on Windows build because we have no viable option for Pcap library in CI:
+            # - Npcap doesn't allow redistribution
+            # - WinPcap doesn't support Windows 10
+            # - Win10Pcap is unmaintained since 2015
             rust_features: ""
           - os: ubuntu-22.04
             artifact_name: ${{ github.event.repository.name }}
