@@ -15,13 +15,13 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: ${{ github.event.repository.name }}.exe
+            artifact_name: ${{ github.event.repository.name }}-pktmon-only.exe
             suffix: ".exe"
-            # We don't enable pcap on Windows build because we have no viable option for Pcap library in CI:
-            # - Npcap doesn't allow redistribution
-            # - WinPcap doesn't support Windows 10
-            # - Win10Pcap is unmaintained since 2015
             rust_features: ""
+          - os: windows-latest
+            artifact_name: ${{ github.event.repository.name }}-pcap-and-pktmon.exe
+            suffix: ".exe"
+            rust_features: "pcap"
           - os: ubuntu-22.04
             artifact_name: ${{ github.event.repository.name }}
             suffix: ""
@@ -37,22 +37,22 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Disable man-db auto update (until fixed in Ubuntu) # will be fixed by 2025-11-14 https://github.com/actions/runner-images/issues/13213
+      - name: Disable man-db auto update (Linux) # will be fixed by 2025-11-14 https://github.com/actions/runner-images/issues/13213
         if: runner.os == 'Linux'
         run: |
           export DEBIAN_FRONTEND=noninteractive
           echo "set man-db/auto-update false" | sudo debconf-communicate
           sudo dpkg-reconfigure -f noninteractive man-db
-      - name: Install libpcap build dependencies (apt-get)
+      - name: Install libpcap build dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo sed -Ei 's/^# deb-src /deb-src /' /etc/apt/sources.list && sudo apt-get update && sudo apt-get build-dep -y libpcap0.8
-      - name: Cache libpcap tarball
+      - name: Cache libpcap tarball (Linux)
         if: runner.os == 'Linux'
         uses: actions/cache@v4
         with:
           path: /tmp/libpcap-1.10.5.tar.gz
           key: libpcap-1.10.5-tarball
-      - name: Build and install libpcap without dbus
+      - name: Build and install libpcap without dbus (Linux)
         if: runner.os == 'Linux'
         run: |
           cd /tmp
@@ -69,12 +69,21 @@ jobs:
           make
           sudo make install
           sudo ldconfig
+      - name: Install Npcap SDK (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          curl https://npcap.com/dist/npcap-sdk-1.15.zip -o sdk.zip
+          unzip sdk.zip
       - run: rustup component add clippy
       - run: cargo check --release
       - run: cargo fmt --check
       - run: cargo test --release --no-default-features --features "${{ matrix.rust_features }}"
+        env:
+            LIB: ${{ github.workspace }}/Lib/x64/
       - run: cargo clippy --release -- -Dwarnings
       - run: cargo build --release --no-default-features --features "${{ matrix.rust_features }}"
+        env:
+            LIB: ${{ github.workspace }}/Lib/x64/
       - if: ${{matrix.artifact_name}}
         name: Upload release artifact
         uses: actions/upload-artifact@v4
