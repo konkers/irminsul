@@ -39,9 +39,32 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           echo "set man-db/auto-update false" | sudo debconf-communicate
           sudo dpkg-reconfigure -f noninteractive man-db
-      - name: Install libpcap-dev (apt-get)
+      - name: Install libpcap build dependencies (apt-get)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+        run: sudo sed -Ei 's/^# deb-src /deb-src /' /etc/apt/sources.list && sudo apt-get update && sudo apt-get build-dep -y libpcap0.8
+      - name: Cache libpcap tarball
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: /tmp/libpcap-1.10.5.tar.gz
+          key: libpcap-1.10.5-tarball
+      - name: Build and install libpcap without dbus
+        if: runner.os == 'Linux'
+        run: |
+          cd /tmp
+          # Download if not cached
+          if [ ! -f libpcap-1.10.5.tar.gz ]; then
+            wget https://www.tcpdump.org/release/libpcap-1.10.5.tar.gz
+          fi
+          # Verify SHA256 checksum
+          echo "37ced90a19a302a7f32e458224a00c365c117905c2cd35ac544b6880a81488f0  libpcap-1.10.5.tar.gz" | sha256sum -c
+          # Extract, build, and install
+          tar xzf libpcap-1.10.5.tar.gz
+          cd libpcap-1.10.5
+          ./configure --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu --disable-dbus
+          make
+          sudo make install
+          sudo ldconfig
       - run: rustup component add clippy
       - run: cargo check --release
       - run: cargo fmt --check
