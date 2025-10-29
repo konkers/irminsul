@@ -88,6 +88,7 @@ winresource = "0.1.23"
 [features]
 default = []
 pcap = ["dep:pcap"]
+static-libpcap = ["pcap"]
 
 [profile.release]
 opt-level = 2 # fast and small wasm

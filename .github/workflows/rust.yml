@@ -15,8 +15,18 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: ${{ github.event.repository.name }}.exe
+            artifact_name: ${{ github.event.repository.name }}-windows-x64.exe
+            alternate_artifact: ${{ github.event.repository.name }}.exe
             suffix: ".exe"
+            rust_features: ""
+          - os: windows-latest
+            artifact_name: ${{ github.event.repository.name }}-pcap-and-pktmon.exe
+            suffix: ".exe"
+            rust_features: "--features pcap"
+          - os: ubuntu-latest
+            artifact_name: ${{ github.event.repository.name }}-linux-x64
+            suffix: ""
+            rust_features: "--features pcap,static-libpcap"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -28,15 +38,61 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install libpcap build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cat /etc/apt/sources.list.d/ubuntu.sources
+          sudo sed -Ei 's/^Types: deb/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+          cat /etc/apt/sources.list.d/ubuntu.sources
+          sudo apt-get update
+          sudo apt-get build-dep -y libpcap0.8t64
+      - name: Cache libpcap tarball (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: /tmp/libpcap-1.10.5.tar.gz
+          key: libpcap-1.10.5-tarball
+      - name: Build and install libpcap without dbus or rdma (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd /tmp
+          # Download if not cached
+          if [ ! -f libpcap-1.10.5.tar.gz ]; then
+            wget https://www.tcpdump.org/release/libpcap-1.10.5.tar.gz
+          fi
+          # Verify SHA256 checksum
+          echo "37ced90a19a302a7f32e458224a00c365c117905c2cd35ac544b6880a81488f0  libpcap-1.10.5.tar.gz" | sha256sum -c
+          # Extract, build, and install
+          tar xzf libpcap-1.10.5.tar.gz
+          cd libpcap-1.10.5
+          ./configure --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu --disable-dbus --disable-rdma
+          make
+          sudo make install
+          sudo ldconfig
+      - name: Install Npcap SDK (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          curl https://npcap.com/dist/npcap-sdk-1.15.zip -o sdk.zip
+          unzip sdk.zip
       - run: rustup component add clippy
-      - run: cargo check --release
+      - run: cargo check --release ${{ matrix.rust_features }}
       - run: cargo fmt --check
-      - run: cargo test --release
-      - run: cargo clippy --release -- -Dwarnings
-      - run: cargo build --release
+      - run: cargo test --release ${{ matrix.rust_features }}
+        env:
+          LIB: ${{ github.workspace }}/Lib/x64/
+      - run: cargo clippy --release ${{ matrix.rust_features }} -- -Dwarnings
+      - run: cargo build --release ${{ matrix.rust_features }}
+        env:
+          LIB: ${{ github.workspace }}/Lib/x64/
       - if: ${{matrix.artifact_name}}
         name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
+          path: target/release/irminsul${{ matrix.suffix }}
+      - if: ${{matrix.alternate_artifact}}
+        name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.alternate_artifact }}
           path: target/release/irminsul${{ matrix.suffix }}
