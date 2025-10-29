@@ -75,3 +75,61 @@ pub fn ensure_admin() {
     // Exit the current process since we launched a new elevated one
     std::process::exit(0);
 }
+
+#[cfg(unix)]
+pub fn ensure_admin() {
+    let is_root = unsafe { libc::geteuid() } == 0;
+    if is_root {
+        return;
+    }
+
+    show_root_required_dialog();
+}
+
+#[cfg(unix)]
+fn show_root_required_dialog() {
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([400.0, 150.0])
+            .with_resizable(false),
+        ..Default::default()
+    };
+
+    // Try to get the current executable path
+    let exe_path = std::env::current_exe()
+        .ok()
+        .map(|mut path| path.as_mut_os_string().to_string_lossy().to_string())
+        .unwrap_or("./irminsul".to_owned());
+
+    let _ = eframe::run_simple_native(
+        "Irminsul must be run as root",
+        options,
+        move |ctx, _frame| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                // Get available height
+                let available_height = ui.available_height();
+
+                // Center the text in the upper portion
+                ui.vertical_centered(|ui| {
+                    ui.add_space(available_height * 0.2);
+                    ui.label("Rerun Irminsul with sudo:");
+                    ui.add_space(5.0);
+                    ui.label(format!("sudo {}", exe_path));
+                });
+
+                // Push button to the bottom
+                ui.with_layout(
+                    egui::Layout::bottom_up(egui::Align::Center).with_cross_justify(true),
+                    |ui| {
+                        ui.add_space(10.0); // Small margin from bottom edge
+                        if ui.button("OK").clicked() {
+                            std::process::exit(1);
+                        }
+                    },
+                );
+            });
+        },
+    );
+
+    std::process::exit(1);
+}
