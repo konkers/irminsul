@@ -40,7 +40,7 @@ indexmap = "2.11.1"
 log = "0.4.27"
 notify = "5.2.0"
 open = "5.3.2"
-pcap = { version = "2.3.0", features = ["capture-stream"] }
+pcap = { version = "2.3.0", features = ["capture-stream"], optional = true }
 regex = "1.11.2"
 reqwest = { version = "0.12.23", features = ["gzip", "stream"] }
 self_update = "0.42.0"
@@ -73,7 +73,9 @@ libc = "0.2.177"
 winresource = "0.1.23"
 
 [features]
-static-libpcap = []
+default = ["pcap"]
+pcap = ["dep:pcap"]
+static-libpcap = ["pcap"]
 
 [profile.release]
 opt-level = 2 # fast and small wasm

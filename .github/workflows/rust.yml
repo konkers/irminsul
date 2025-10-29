@@ -17,9 +17,11 @@ jobs:
           - os: windows-latest
             artifact_name: ${{ github.event.repository.name }}.exe
             suffix: ".exe"
+            rust_features: ""
           - os: ubuntu-22.04
             artifact_name: ${{ github.event.repository.name }}
             suffix: ""
+            rust_features: "pcap,static-libpcap"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -43,9 +45,9 @@ jobs:
       - run: rustup component add clippy
       - run: cargo check --release
       - run: cargo fmt --check
-      - run: cargo test --release --features static-libpcap
+      - run: cargo test --release --no-default-features --features "${{ matrix.rust_features }}"
       - run: cargo clippy --release -- -Dwarnings
-      - run: cargo build --release --features static-libpcap
+      - run: cargo build --release --no-default-features --features "${{ matrix.rust_features }}"
       - if: ${{matrix.artifact_name}}
         name: Upload release artifact
         uses: actions/upload-artifact@v4
