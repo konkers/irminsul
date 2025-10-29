@@ -11,6 +11,13 @@ Irminsul is a utility to extract data from Genshin Impact and export it for use 
 
 Irminsul utilizes packet capture instead of the common optical character recognition (OCR) that other [scanners](https://frzyc.github.io/genshin-optimizer/#/scanner) use. This allows it to be much quicker in exchange for 1. needing to run with admin privaleges (for the packet capture) and 2. needing to be run when genshin starts to observe the handshake with the server.
 
+## Command line options
+
+Irminsul accepts a handful of command line options for advanced use cases:
+
+- `--capture-backend <pktmon|pcap>` (shorthand `-b`): chooses which capture backend to use. On Windows both `pktmon` (default) and `pcap` are available. On other platforms only `pcap` is available.
+- `--no-admin`: skips the automatic elevation prompt. This can be useful when you prefer to launch the application without requesting higher privileges up front.
+
 ## Features
 
 In it's current state Irminsul supports:

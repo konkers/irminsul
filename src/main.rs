@@ -99,6 +99,14 @@ impl AppState {
 struct Args {
     #[arg(long, default_value_t = false)]
     no_admin: bool,
+
+    #[arg(
+        long = "capture-backend",
+        short = 'b',
+        value_enum,
+        default_value_t = capture::DEFAULT_CAPTURE_BACKEND_TYPE
+    )]
+    capture_backend: capture::BackendType,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, Default)]
@@ -159,6 +167,8 @@ fn main() -> eframe::Result {
         admin::ensure_admin();
     }
 
+    let capture_backend = args.capture_backend;
+
     let background_image_size = [1600., 1000.];
 
     let native_options = eframe::NativeOptions {
@@ -177,7 +187,13 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Irminsul",
         native_options,
-        Box::new(|cc| Ok(Box::new(app::IrminsulApp::new(cc, reload_handle)))),
+        Box::new(move |cc| {
+            Ok(Box::new(app::IrminsulApp::new(
+                cc,
+                reload_handle,
+                capture_backend,
+            )))
+        }),
     )
 }
 

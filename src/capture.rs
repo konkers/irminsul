@@ -6,6 +6,7 @@ use std::fmt::{Debug, Display};
 
 use anyhow::Error;
 use async_trait::async_trait;
+use clap::ValueEnum;
 
 pub const PORT_RANGE: (u16, u16) = (22101, 22102);
 
@@ -43,11 +44,11 @@ pub trait CaptureBackend: Send {
     async fn next_packet(&mut self) -> Result<Vec<u8>>;
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 #[allow(unused)]
 pub enum BackendType {
+    #[cfg(windows)]
     Pktmon,
-    #[expect(dead_code)]
     Pcap,
 }
 

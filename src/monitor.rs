@@ -14,7 +14,7 @@ use chrono::prelude::*;
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
-use crate::capture::{DEFAULT_CAPTURE_BACKEND_TYPE, create_capture};
+use crate::capture::{BackendType, create_capture};
 use crate::player_data::PlayerData;
 use crate::{APP_ID, AppState, ConfirmationType, DataUpdated, Message, State};
 
@@ -56,6 +56,7 @@ pub struct Monitor {
     capture_cancel_token: Option<CancellationToken>,
     packet_tx: mpsc::UnboundedSender<Vec<u8>>,
     packet_rx: mpsc::UnboundedReceiver<Vec<u8>>,
+    capture_backend: BackendType,
 }
 
 impl Monitor {
@@ -63,6 +64,7 @@ impl Monitor {
         state_tx: watch::Sender<AppState>,
         mut ui_message_rx: mpsc::UnboundedReceiver<Message>,
         log_packet_rx: watch::Receiver<bool>,
+        capture_backend: BackendType,
     ) -> Result<Self> {
         let mut app_state = AppStateManager::new(state_tx.borrow().clone(), state_tx.clone());
         let game_data = get_database(&mut app_state, &mut ui_message_rx).await?;
@@ -80,6 +82,7 @@ impl Monitor {
             capture_cancel_token: None,
             packet_tx,
             packet_rx,
+            capture_backend,
         })
     }
 
@@ -104,7 +107,11 @@ impl Monitor {
 
                 // Spawn capture task.
                 let cancel_token = CancellationToken::new();
-                tokio::spawn(capture_task(cancel_token.clone(), self.packet_tx.clone()));
+                tokio::spawn(capture_task(
+                    cancel_token.clone(),
+                    self.packet_tx.clone(),
+                    self.capture_backend,
+                ));
                 self.capture_cancel_token = Some(cancel_token);
                 self.app_state.update_capturing_state(true);
             }
@@ -201,10 +208,10 @@ async fn get_database(
 async fn capture_task(
     cancel_token: CancellationToken,
     packet_tx: mpsc::UnboundedSender<Vec<u8>>,
+    backend: BackendType,
 ) -> Result<()> {
-    // TODO: Allow user to select backend type
-    let mut capture = create_capture(DEFAULT_CAPTURE_BACKEND_TYPE)
-        .map_err(|e| anyhow!("Error creating packet capture: {e}"))?;
+    let mut capture = create_capture(backend)
+        .map_err(|e| anyhow!("Error creating packet capture using {:?}: {e}", backend))?;
     tracing::info!("starting capture");
     loop {
         let packet = tokio::select!(

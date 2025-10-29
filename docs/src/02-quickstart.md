@@ -36,3 +36,10 @@ Once the data has been captured, you can export:
 - To a file by clicking on the download icon.
 
 Which data gets exported can be controlled by clicking on the settings icon.
+
+## Command line options
+
+Irminsul also supports a couple of command line flags when launching from a terminal:
+
+- `--capture-backend <pktmon|pcap>` (or `-b`): on Windows you can choose between the `pktmon` backend (default) and the cross-platform `pcap` backend. On other platforms only `pcap` is available.
+- `--no-admin`: skip the automatic elevation prompt if you prefer to launch without requesting administrator rights.
