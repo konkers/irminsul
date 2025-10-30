@@ -11,20 +11,24 @@ pub struct PcapBackend {
 
 impl PcapBackend {
     pub fn new() -> Result<Self> {
-        let device = match Device::lookup() {
-            Ok(Some(device)) => device,
-            Ok(None) | Err(_) => Device::list()
-                .map_err(|e| CaptureError::Capture {
-                    has_captured: false,
-                    error: e.into(),
-                })?
-                .into_iter()
-                .next()
-                .ok_or_else(|| CaptureError::Capture {
-                    has_captured: false,
-                    error: anyhow!("No capture device available"),
-                })?,
-        };
+        let devices = Device::list().map_err(|e| CaptureError::Capture {
+            has_captured: false,
+            error: e.into(),
+        })?;
+
+        tracing::info!("Found {} devices", devices.len());
+        for device in &devices {
+            tracing::info!("Device {}: {:?}", device.name, device);
+        }
+
+        // This has same behavior as using Device::lookup() directly
+        let device = devices
+            .into_iter()
+            .next()
+            .ok_or_else(|| CaptureError::Capture {
+                has_captured: false,
+                error: anyhow!("No capture device available"),
+            })?;
         tracing::info!("Capturing from device {}", device.name);
 
         let mut capture = Capture::from_device(device)
