@@ -78,20 +78,27 @@ pub fn ensure_admin() {
 
 #[cfg(unix)]
 pub fn ensure_admin() {
+    // We are happy if we are running as root or have CAP_NET_RAW
     let is_root = unsafe { libc::geteuid() } == 0;
     if is_root {
         return;
     }
 
-    show_root_required_dialog();
+    let has_net_raw_result =
+        caps::has_cap(None, caps::CapSet::Effective, caps::Capability::CAP_NET_RAW);
+    if has_net_raw_result.is_ok_and(|has_net_raw| has_net_raw) {
+        return;
+    }
+
+    show_packet_capture_permissions_missing_dialog();
 }
 
 #[cfg(unix)]
-fn show_root_required_dialog() {
+fn show_packet_capture_permissions_missing_dialog() {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([400.0, 150.0])
-            .with_resizable(false),
+            .with_inner_size([500.0, 200.0])
+            .with_resizable(true),
         ..Default::default()
     };
 
@@ -102,19 +109,23 @@ fn show_root_required_dialog() {
         .unwrap_or("./irminsul".to_owned());
 
     let _ = eframe::run_simple_native(
-        "Irminsul must be run as root",
+        "Irminsul requires packet capture permissions",
         options,
         move |ctx, _frame| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                // Get available height
-                let available_height = ui.available_height();
-
-                // Center the text in the upper portion
                 ui.vertical_centered(|ui| {
-                    ui.add_space(available_height * 0.2);
-                    ui.label("Rerun Irminsul with sudo:");
+                    ui.label("How to grant packet capture permissions:");
                     ui.add_space(5.0);
-                    ui.label(format!("sudo {}", exe_path));
+                    ui.label("1. Grant CAP_NET_RAW to Irminsul (after every update):");
+                    ui.label(format!(
+                        "sudo setcap cap_net_raw=ep '{}' && '{}'",
+                        exe_path, exe_path
+                    ));
+                    ui.add_space(5.0);
+                    ui.label("2. Run Irminsul as root (every time):");
+                    ui.label(format!("sudo '{}'", exe_path));
+                    ui.add_space(10.0);
+                    ui.label("Rerun Irminsul with --no-admin if you wish to proceed without packet capture")
                 });
 
                 // Push button to the bottom
