@@ -143,6 +143,7 @@ impl Monitor {
                     tracing::info!("error logging command {e}");
                 }
             }
+
             if let Some(items) = matches_item_packet(&command) {
                 tracing::info!("Found item packet with {} items", items.len());
                 self.player_data.process_items(&items);
