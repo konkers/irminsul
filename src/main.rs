@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::{Context, Result};
-use clap::{Parser, command};
+use clap::Parser;
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 use tracing_appender::rolling::Rotation;
