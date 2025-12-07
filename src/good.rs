@@ -87,18 +87,18 @@ pub fn to_good_key(value: &str) -> String {
 }
 
 pub fn fake_uninitialized_4th_line(artifacts: Vec<Artifact>) -> Vec<Artifact> {
-    return artifacts
+    artifacts
         .into_iter()
         .map(|mut arti| {
-            if arti.unactivated_substats.len() == 0 || arti.rarity != 5 {
+            if arti.unactivated_substats.is_empty() || arti.rarity != 5 {
                 return arti;
             }
             arti.substats.push(arti.unactivated_substats.pop().unwrap());
-            return Artifact {
+            Artifact {
                 level: 4,
                 total_rolls: 4,
                 ..arti
-            };
+            }
         })
-        .collect();
+        .collect()
 }
