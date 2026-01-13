@@ -60,16 +60,8 @@ pub const DEFAULT_CAPTURE_BACKEND_TYPE: BackendType = BackendType::Pcap;
 
 pub fn create_capture(backend: BackendType) -> Result<Box<dyn CaptureBackend>> {
     match backend {
-        BackendType::Pktmon => {
-            if cfg!(windows) {
-                Ok(Box::new(pktmon_backend::PktmonBackend::new()?))
-            } else {
-                Err(CaptureError::Capture {
-                    has_captured: false,
-                    error: anyhow::anyhow!("Pktmon capture not supported on this operating system"),
-                })
-            }
-        }
+        #[cfg(windows)]
+        BackendType::Pktmon => Ok(Box::new(pktmon_backend::PktmonBackend::new()?)),
 
         BackendType::Pcap => {
             if cfg!(feature = "pcap") {
