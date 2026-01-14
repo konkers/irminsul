@@ -15,7 +15,7 @@ anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "d
 anyhow = "1.0.99"
 async-trait = "0.1.89"
 async-watcher = "0.3.0"
-auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "00ea7c806a0191ea3fb6793dac59350e0508ddc2" }
+auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "d522b1ada000cfb453c0250fb2327f5cc7778bf2" }
 base64 = "0.22.1"
 chrono = "0.4.42"
 clap = { version = "4.5.47", features = ["derive"] }
