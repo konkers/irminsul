@@ -1,6 +1,6 @@
 [package]
 name = "irminsul"
-version = "0.1.13"
+version = "0.1.14"
 authors = ["Konkers <konkers@konkers.net>"]
 edition = "2024"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
