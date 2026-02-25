@@ -75,3 +75,81 @@ pub fn ensure_admin() {
     // Exit the current process since we launched a new elevated one
     std::process::exit(0);
 }
+
+#[cfg(unix)]
+pub fn ensure_admin() {
+    let is_root = unsafe { libc::geteuid() } == 0;
+    if is_root {
+        return;
+    }
+
+    let has_cap_net_raw = std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|status| {
+            status
+                .lines()
+                .find(|l| l.starts_with("CapEff:"))
+                .and_then(|line| {
+                    let hex = line.split_whitespace().nth(1)?;
+                    u64::from_str_radix(hex, 16).ok()
+                })
+        })
+        .map(|caps| caps & (1 << 13) != 0)
+        .unwrap_or(false);
+
+    if has_cap_net_raw {
+        return;
+    }
+
+    show_packet_capture_permissions_missing_dialog();
+}
+
+// The code from https://github.com/NyanCatTW1/irminsul
+#[cfg(unix)]
+fn show_packet_capture_permissions_missing_dialog() {
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([500.0, 200.0])
+            .with_resizable(true),
+        ..Default::default()
+    };
+
+    let exe_path = std::env::current_exe()
+        .ok()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "./irminsul".to_owned());
+
+    let _ = eframe::run_simple_native(
+        "Irminsul requires packet capture permissions",
+        options,
+        move |ctx, _frame| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label("How to grant packet capture permissions:");
+                    ui.add_space(5.0);
+                    ui.label("1. Grant CAP_NET_RAW to Irminsul (after every update):");
+                    ui.label(format!("sudo setcap cap_net_raw+ep '{exe_path}' && '{exe_path}'"));
+                    ui.add_space(5.0);
+                    ui.label("2. Run Irminsul as root (every time):");
+                    ui.label(format!("sudo '{exe_path}'"));
+                    ui.add_space(10.0);
+                    ui.label(
+                        "Rerun Irminsul with --no-admin if you wish to proceed without packet capture",
+                    );
+                });
+
+                ui.with_layout(
+                    egui::Layout::bottom_up(egui::Align::Center).with_cross_justify(true),
+                    |ui| {
+                        ui.add_space(10.0);
+                        if ui.button("OK").clicked() {
+                            std::process::exit(1);
+                        }
+                    },
+                );
+            });
+        },
+    );
+
+    std::process::exit(1);
+}

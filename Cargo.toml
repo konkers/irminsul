@@ -56,6 +56,10 @@ tracing = { version = "0.1.41" }
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
+[target.'cfg(unix)'.dependencies]
+pcap = "2"
+libc = "0.2"
+
 [target.'cfg(windows)'.dependencies]
 pktmon = { version = "0.6.2", features = ["tokio"] }
 windows = { version = "0.61.3", features = [
