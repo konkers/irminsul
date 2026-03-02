@@ -78,15 +78,23 @@ pub fn ensure_admin() {
 
 #[cfg(unix)]
 pub fn ensure_admin() {
-    // We are happy if we are running as root or have CAP_NET_RAW
+    // Running as root is always sufficient
     let is_root = unsafe { libc::geteuid() } == 0;
     if is_root {
         return;
     }
 
-    let has_net_raw_result =
-        caps::has_cap(None, caps::CapSet::Effective, caps::Capability::CAP_NET_RAW);
-    if has_net_raw_result.is_ok_and(|has_net_raw| has_net_raw) {
+    // On Linux, CAP_NET_RAW is sufficient
+    #[cfg(target_os = "linux")]
+    if caps::has_cap(None, caps::CapSet::Effective, caps::Capability::CAP_NET_RAW)
+        .is_ok_and(|has_net_raw| has_net_raw)
+    {
+        return;
+    }
+
+    // On macOS, /dev/bpf access is sufficient
+    #[cfg(target_os = "macos")]
+    if std::fs::File::open("/dev/bpf0").is_ok() {
         return;
     }
 
@@ -116,11 +124,22 @@ fn show_packet_capture_permissions_missing_dialog() {
                 ui.vertical_centered(|ui| {
                     ui.label("How to grant packet capture permissions:");
                     ui.add_space(5.0);
-                    ui.label("1. Grant CAP_NET_RAW to Irminsul (after every update):");
-                    ui.label(format!(
-                        "sudo setcap cap_net_raw=ep '{}' && '{}'",
-                        exe_path, exe_path
-                    ));
+
+                    #[cfg(target_os = "linux")]
+                    {
+                        ui.label("1. Grant CAP_NET_RAW to Irminsul (after every update):");
+                        ui.label(format!(
+                            "sudo setcap cap_net_raw=ep '{}' && '{}'",
+                            exe_path, exe_path
+                        ));
+                    }
+
+                    #[cfg(target_os = "macos")]
+                    {
+                        ui.label("1. Grant read permissions on /dev/bpf* (after every reboot):");
+                        ui.label("sudo chmod 644 /dev/bpf*");
+                    }
+
                     ui.add_space(5.0);
                     ui.label("2. Run Irminsul as root (every time):");
                     ui.label(format!("sudo '{}'", exe_path));
