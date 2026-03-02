@@ -1,6 +1,6 @@
 [package]
 name = "irminsul"
-version = "0.1.13"
+version = "0.1.15"
 authors = ["Konkers <konkers@konkers.net>"]
 edition = "2024"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
@@ -15,7 +15,7 @@ anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "d
 anyhow = "1.0.99"
 async-trait = "0.1.89"
 async-watcher = "0.3.0"
-auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "00ea7c806a0191ea3fb6793dac59350e0508ddc2" }
+auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "c5fa36b84e05ad0339fee8a0a420d26900b824b7" }
 base64 = "0.22.1"
 chrono = "0.4.42"
 clap = { version = "4.5.47", features = ["derive"] }
@@ -66,8 +66,10 @@ windows = { version = "0.61.3", features = [
 	"Win32_UI_Shell",
 ] }
 
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 caps = "0.5.6"
+
+[target.'cfg(unix)'.dependencies]
 libc = "0.2.177"
 
 [build-dependencies]
