@@ -66,8 +66,10 @@ windows = { version = "0.61.3", features = [
 	"Win32_UI_Shell",
 ] }
 
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 caps = "0.5.6"
+
+[target.'cfg(unix)'.dependencies]
 libc = "0.2.177"
 
 [build-dependencies]
