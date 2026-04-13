@@ -11,7 +11,7 @@ all-features = true
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [dependencies]
-anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "d5dc51754ac96d65ad1201c85cd03cc9dc35bb72" }
+anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "9cea9dd545317f897f827a54fa14b16defcec67d" }
 anyhow = "1.0.99"
 async-watcher = "0.3.0"
 auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "fa768462e3dbe10294c9973b8a9ba7b8cbcdab8b" }
