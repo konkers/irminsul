@@ -178,7 +178,7 @@ dependencies = [
 [[package]]
 name = "anime-game-data"
 version = "0.1.0"
-source = "git+https://github.com/konkers/anime-game-data?rev=9cea9dd545317f897f827a54fa14b16defcec67d#9cea9dd545317f897f827a54fa14b16defcec67d"
+source = "git+https://github.com/konkers/anime-game-data?rev=222bab5d8f3f7c5052360672a9d882e766e70062#222bab5d8f3f7c5052360672a9d882e766e70062"
 dependencies = [
  "anyhow",
  "reqwest",
@@ -2306,6 +2306,7 @@ dependencies = [
  "egui_extras",
  "egui_material_icons",
  "env_logger",
+ "flate2",
  "futures",
  "futures-util",
  "indexmap",

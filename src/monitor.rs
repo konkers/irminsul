@@ -11,12 +11,13 @@ use auto_artifactarium::{
 };
 use base64::prelude::*;
 use chrono::prelude::*;
+use flate2::read::GzDecoder;
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
 use crate::capture::PacketCapture;
 use crate::player_data::PlayerData;
-use crate::{APP_ID, AppState, ConfirmationType, DataUpdated, Message, State};
+use crate::{APP_ID, AppState, DataUpdated, Message, State};
 
 struct AppStateManager {
     app_state: AppState,
@@ -170,30 +171,13 @@ impl Monitor {
 
 async fn get_database(
     app_state: &mut AppStateManager,
-    ui_message_rx: &mut mpsc::UnboundedReceiver<Message>,
+    _ui_message_rx: &mut mpsc::UnboundedReceiver<Message>,
 ) -> Result<AnimeGameData> {
     app_state.update_app_state(State::CheckingForData);
 
-    let mut storage_dir = eframe::storage_dir(APP_ID).unwrap();
-    storage_dir.push("data_cache.json");
-
-    let mut db = anime_game_data::AnimeGameData::new_with_cache(&storage_dir).unwrap();
-    if db.needs_update().await? {
-        let confirmation_type = if db.has_data() {
-            ConfirmationType::Update
-        } else {
-            ConfirmationType::Initial
-        };
-        app_state.update_app_state(State::WaitingForDownloadConfirmation(confirmation_type));
-
-        while let Some(msg) = ui_message_rx.recv().await {
-            if matches!(msg, Message::DownloadAcknowledged) {
-                app_state.update_app_state(State::Downloading);
-                db.update().await?;
-                break;
-            }
-        }
-    }
+    static DATABASE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/game_data.gz"));
+    let reader = GzDecoder::new(DATABASE);
+    let db = anime_game_data::AnimeGameData::new_from_reader(reader)?;
 
     Ok(db)
 }
