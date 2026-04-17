@@ -2,13 +2,34 @@
 
 ## Download Irminsul
 
-The latest Irminsul release can always be found on the [Irminsul GitHub Released Page](https://github.com/konkers/irminsul/releases). Make sure to grab `irminsul.exe` and not either of the "Source code" archives.
+The latest Irminsul release can always be found on the [Irminsul GitHub Released Page](https://github.com/konkers/irminsul/releases).
 
-## Launch Irminsul and accept admin privaleges
+- **Windows:** download `irminsul.exe`
+- **Linux:** download `irminsul`
 
-Irminsul needs to be running and capturing packets before you enter the door into the main game. The simplest way to accomplish this is to launch Irminsul before launching Genshin
+Do not download either of the "Source code" archives.
 
-Irminsul needs admin privaleges to observe Genshin's network traffic and won't work without it.
+## Launch Irminsul
+
+Irminsul needs to be running and capturing packets before you enter the door into the main game. The simplest way to accomplish this is to launch Irminsul before launching Genshin.
+
+### Windows
+
+Irminsul needs admin privileges to observe Genshin's network traffic and won't work without it. Accept the UAC prompt when launching.
+
+### Linux
+
+Irminsul requires the `cap_net_raw` capability to capture packets. Run this once after downloading:
+
+```sh
+sudo setcap cap_net_raw+ep ./irminsul
+```
+
+Then launch Irminsul normally (no `sudo` needed):
+
+```sh
+./irminsul
+```
 
 ## Start packet capture
 

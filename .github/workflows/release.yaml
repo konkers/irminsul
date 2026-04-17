@@ -8,22 +8,13 @@ on:
         default: "0.0.0"
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  bump-version:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: cargo install toml-cli
-
       - name: Update Cargo.toml with new version
         # piping the output of toml-cli directly into the file will cause the file to be deleted before being read
         # by toml-cli. excuse this workaround.
@@ -32,7 +23,6 @@ jobs:
           rm Cargo.toml
           mv Cargo.toml.new Cargo.toml
           cargo generate-lockfile
-      - run: cargo build --release
       - name: Push updated version
         run: |
           git config user.name "irminsul bot"
@@ -41,23 +31,88 @@ jobs:
           git add Cargo.lock
           git commit -m "[skip ci] bump version to ${{inputs.nextVersion}}"
           git push origin main
+
+  build-windows:
+    runs-on: windows-latest
+    needs: [bump-version]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
           name: irminsul
           path: target/release/irminsul.exe
 
-  create-release:
+  build-linux:
     runs-on: ubuntu-latest
-    needs: [build-windows]
+    needs: [bump-version]
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Download release artifact
+        with:
+          ref: main
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Setup Linux environment
+        run: sudo apt-get update && sudo apt-get install -y flex bison
+      - name: Cache libpcap tarball
+        uses: actions/cache@v4
+        with:
+          path: /tmp/libpcap-1.10.6.tar.gz
+          key: libpcap-1.10.6-tarball
+      - name: Build libpcap
+        run: |
+          cd /tmp
+          [ ! -f libpcap-1.10.6.tar.gz ] && wget https://www.tcpdump.org/release/libpcap-1.10.6.tar.gz
+          echo "872dd11337fe1ab02ad9d4fee047c9da244d695c6ddf34e2ebb733efd4ed8aa9  libpcap-1.10.6.tar.gz" | sha256sum -c
+          tar xzf libpcap-1.10.6.tar.gz
+          cd libpcap-1.10.6
+          ./configure --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu --disable-dbus
+          make && sudo make install && sudo ldconfig
+      - run: cargo build --release
+        env:
+          RUSTFLAGS: "-C link-arg=-Wl,-Bstatic,-lpcap,-Bdynamic"
+      - name: Mark binary executable
+        run: chmod +x target/release/irminsul
+      - uses: actions/upload-artifact@v4
+        with:
+          name: irminsul-linux
+          path: target/release/irminsul
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
-          name: irminsul
+          pattern: irminsul*
           path: ./
+          merge-multiple: true
       - name: Create and push version tag
         run: |
           git tag v${{inputs.nextVersion}}
@@ -67,4 +122,4 @@ jobs:
         with:
           tag: v${{inputs.nextVersion}}
           name: "v${{inputs.nextVersion}}"
-          artifacts: "irminsul.exe"
+          artifacts: "irminsul.exe,irminsul"

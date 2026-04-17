@@ -155,7 +155,6 @@ fn main() -> eframe::Result {
     let args = Args::parse();
 
     if !args.no_admin {
-        #[cfg(windows)]
         admin::ensure_admin();
     }
 
