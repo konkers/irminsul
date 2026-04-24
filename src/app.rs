@@ -23,6 +23,17 @@ use crate::{
     AppState, ConfirmationType, Message, ReloadHandle, State, TracingLevel, open_log_dir, wish,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AchievementFormat {
+    Uiaf,
+    Seelie,
+    Cocogoat,
+    SnapGenshin,
+    Xunkong,
+    TeyvatGuide,
+    Csv,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SavedAppState {
     export_settings: ExportSettings,
@@ -31,6 +42,14 @@ pub struct SavedAppState {
     log_raw_packets: bool,
     #[serde(default)]
     tracing_level: TracingLevel,
+    #[serde(default)]
+    achievement_format: AchievementFormat,
+}
+
+impl Default for AchievementFormat {
+    fn default() -> Self {
+        Self::Uiaf
+    }
 }
 
 impl Default for SavedAppState {
@@ -55,6 +74,7 @@ impl Default for SavedAppState {
             auto_start_capture: false,
             log_raw_packets: false,
             tracing_level: Default::default(),
+            achievement_format: Default::default(),
         }
     }
 }
@@ -64,6 +84,14 @@ enum OptimizerExportTarget {
     None,
     Clipboard,
     File,
+}
+
+#[derive(Clone, Debug)]
+enum AchievementExportTarget {
+    None,
+    Clipboard,
+    File,
+    Cocogoat,
 }
 
 pub struct IrminsulApp {
@@ -85,6 +113,11 @@ pub struct IrminsulApp {
     optimizer_save_dialog: Option<FileDialog>,
     optimizer_save_path: Option<PathBuf>,
     optimizer_export_target: OptimizerExportTarget,
+
+    achievement_export_rx: Option<oneshot::Receiver<Result<String>>>,
+    achievement_save_dialog: Option<FileDialog>,
+    achievement_save_path: Option<PathBuf>,
+    achievement_export_target: AchievementExportTarget,
 
     restarting: bool,
 
@@ -205,6 +238,10 @@ impl IrminsulApp {
             optimizer_save_dialog: None,
             optimizer_save_path: None,
             optimizer_export_target: OptimizerExportTarget::None,
+            achievement_export_rx: None,
+            achievement_save_dialog: None,
+            achievement_save_path: None,
+            achievement_export_target: AchievementExportTarget::None,
             restarting: false,
             state_rx,
             wish_url_rx,
@@ -228,6 +265,9 @@ impl eframe::App for IrminsulApp {
         self.toasts.show(ctx);
         if let Some(optimizer_save_dialog) = &mut self.optimizer_save_dialog {
             optimizer_save_dialog.update(ctx);
+        }
+        if let Some(achievement_save_dialog) = &mut self.achievement_save_dialog {
+            achievement_save_dialog.update(ctx);
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -887,9 +927,223 @@ impl IrminsulApp {
         Ok(())
     }
 
-    fn achievement_ui(&self, ui: &mut egui::Ui, _app_state: &AppState) {
-        Self::section_header(ui, "Achievement Export");
-        ui.label("coming soon".to_string());
+    fn achievement_ui(&mut self, ui: &mut egui::Ui, app_state: &AppState) {
+        self.achievement_handle_export(ui).toast_error(self);
+
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                Self::section_header(ui, "Achievements");
+                ui.label(egui_material_icons::icons::ICON_HELP)
+                    .on_hover_text("Export your achievements in various formats compatible with external trackers.");
+            });
+
+            ui.add_enabled_ui(
+                app_state.updated.achievements_updated.is_some()
+                    && self.achievement_export_rx.is_none(),
+                |ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let format_name = format!("{:?}", self.saved_state.achievement_format);
+                        let extension = if self.saved_state.achievement_format == AchievementFormat::Csv { "csv" } else { "json" };
+                        let file_prefix = format_name.to_lowercase();
+
+                                let icon = match self.saved_state.achievement_format {
+                                    AchievementFormat::Cocogoat => egui_material_icons::icons::ICON_CLOUD_UPLOAD,
+                                    AchievementFormat::SnapGenshin | AchievementFormat::Xunkong | AchievementFormat::TeyvatGuide => egui_material_icons::icons::ICON_OPEN_IN_NEW,
+                                    _ => egui_material_icons::icons::ICON_CONTENT_PASTE_GO,
+                                };
+                                
+                                let hover_text = match self.saved_state.achievement_format {
+                                    AchievementFormat::Cocogoat => "Export to Cocogoat (Web API)",
+                                    AchievementFormat::SnapGenshin => "Export to Snap Genshin (App)",
+                                    AchievementFormat::Xunkong => "Export to Xunkong (App)",
+                                    AchievementFormat::TeyvatGuide => "Export to Teyvat Guide (App)",
+                                    _ => "Copy to clipboard",
+                                };
+
+                                if ui
+                                    .button(icon)
+                                    .on_hover_text(hover_text)
+                                    .clicked()
+                                {
+                                    let target = match self.saved_state.achievement_format {
+                                        AchievementFormat::Cocogoat => AchievementExportTarget::Cocogoat,
+                                        _ => AchievementExportTarget::Clipboard,
+                                    };
+                                    self.achievement_request_export(target);
+                                }
+
+                                if ui
+                                    .button(egui_material_icons::icons::ICON_DOWNLOAD)
+                                    .on_hover_text(format!("Save {} to file", format_name))
+                                    .clicked()
+                                {
+                                    let now = Local::now();
+                                    let mut achievement_save_dialog = FileDialog::new()
+                                        .add_file_filter_extensions(if extension == "csv" { "CSV files" } else { "JSON files" }, vec![extension])
+                                        .default_file_name(&format!(
+                                            "{}_{}.{}",
+                                            file_prefix,
+                                            now.format("%Y-%m-%d_%H-%M"),
+                                            extension
+                                        ));
+                                    achievement_save_dialog.save_file();
+                                    self.achievement_save_dialog = Some(achievement_save_dialog);
+                                }
+
+                                if let Some(achievement_save_dialog) = &mut self.achievement_save_dialog
+                                    && let Some(path) = achievement_save_dialog.take_picked()
+                                {
+                                    self.achievement_save_path = Some(path);
+                                    self.achievement_request_export(AchievementExportTarget::File);
+                                }
+
+                                egui::ComboBox::from_id_source("achievement_format")
+                                    .selected_text(format_name)
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(
+                                            &mut self.saved_state.achievement_format,
+                                            AchievementFormat::Uiaf,
+                                            "UIAF",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.saved_state.achievement_format,
+                                            AchievementFormat::Seelie,
+                                            "Seelie",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.saved_state.achievement_format,
+                                            AchievementFormat::Cocogoat,
+                                            "Cocogoat (Web)",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.saved_state.achievement_format,
+                                            AchievementFormat::SnapGenshin,
+                                            "Snap Genshin",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.saved_state.achievement_format,
+                                            AchievementFormat::Xunkong,
+                                            "Xunkong",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.saved_state.achievement_format,
+                                            AchievementFormat::TeyvatGuide,
+                                            "Teyvat Guide",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.saved_state.achievement_format,
+                                            AchievementFormat::Csv,
+                                            "CSV",
+                                        );
+                                    });
+                        });
+                });
+            });
+    }
+
+    fn achievement_request_export(&mut self, target: AchievementExportTarget) {
+        let (tx, rx) = oneshot::channel();
+        let _ = self.ui_message_tx.send(Message::ExportAchievements(
+            self.saved_state.achievement_format,
+            tx,
+        ));
+        self.achievement_export_target = target;
+        self.achievement_export_rx = Some(rx);
+    }
+
+    fn achievement_handle_export(&mut self, ui: &mut egui::Ui) -> Result<()> {
+        let Some(rx) = self.achievement_export_rx.take() else {
+            return Ok(());
+        };
+
+        let json = rx.blocking_recv()??;
+
+        match self.achievement_export_target {
+            AchievementExportTarget::None => {
+                tracing::warn!("Unexpected achievement json export");
+            }
+            AchievementExportTarget::Clipboard => {
+                let format = self.saved_state.achievement_format;
+                self.achievement_save_to_clipboard(ui, json)?;
+                
+                // Handle protocols
+                match format {
+                    AchievementFormat::SnapGenshin => { let _ = open::that("hutao://achievement/import"); }
+                    AchievementFormat::Xunkong => { let _ = open::that("xunkong://import-achievement?caller=Irminsul&from=clipboard"); }
+                    AchievementFormat::TeyvatGuide => { let _ = open::that("teyvatguide://import_uiaf?app=Irminsul"); }
+                    _ => ()
+                }
+            }
+            AchievementExportTarget::File => {
+                self.achievement_save_to_file(json)?;
+            }
+            AchievementExportTarget::Cocogoat => {
+                self.achievement_export_to_cocogoat(json);
+            }
+        }
+
+        self.achievement_export_target = AchievementExportTarget::None;
+        Ok(())
+    }
+
+    fn achievement_save_to_clipboard(&mut self, ui: &mut egui::Ui, json: String) -> Result<()> {
+        ui.ctx().copy_text(json);
+        self.toasts.info(format!(
+            "Achievement data ({:?}) copied to clipboard",
+            self.saved_state.achievement_format
+        ));
+        Ok(())
+    }
+
+    fn achievement_save_to_file(&mut self, json: String) -> Result<()> {
+        let path = self
+            .achievement_save_path
+            .take()
+            .ok_or_else(|| anyhow!("No save file path set"))?;
+
+        let file = File::create(&path).with_context(|| format!("Unable to open file {path:?}"))?;
+        let mut writer = BufWriter::new(file);
+        writer.write_all(json.as_bytes())?;
+
+        self.toasts.info(format!(
+            "Achievement data ({:?}) saved to file",
+            self.saved_state.achievement_format
+        ));
+        Ok(())
+    }
+
+    fn achievement_export_to_cocogoat(&mut self, json: String) {
+        self.toasts.info("Exporting to Cocogoat...");
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let res = client
+                .post("https://77.cocogoat.cn/v1/memo?source=Irminsul")
+                .header("Content-Type", "application/json")
+                .body(json)
+                .send()
+                .await;
+
+            match res {
+                Ok(response) if response.status().is_success() => {
+                    if let Ok(body) = response.text().await {
+                        if let Ok(json_res) = serde_json::from_str::<serde_json::Value>(&body) {
+                            if let Some(key) = json_res["key"].as_str() {
+                                let url = format!("https://cocogoat.work/achievement?memo={}", key);
+                                let _ = open::that(&url);
+                                return;
+                            }
+                        }
+                    }
+                    tracing::error!("Cocogoat returned invalid response");
+                }
+                Ok(response) => {
+                    tracing::error!("Cocogoat error: {}", response.status());
+                }
+                Err(e) => {
+                    tracing::error!("Failed to connect to Cocogoat: {}", e);
+                }
+            }
+        });
     }
 
     fn section_header(ui: &mut egui::Ui, name: &str) {

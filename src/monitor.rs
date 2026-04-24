@@ -120,6 +120,9 @@ impl Monitor {
             Message::ExportGenshinOptimizer(settings, reply_tx) => {
                 let _ = reply_tx.send(self.player_data.export_genshin_optimizer(&settings));
             }
+            Message::ExportAchievements(format, reply_tx) => {
+                let _ = reply_tx.send(self.player_data.export_achievements(format));
+            }
             _ => (),
         }
     }
