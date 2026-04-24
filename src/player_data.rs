@@ -4,10 +4,13 @@ use anime_game_data::{AnimeGameData, Property, SkillType};
 use anyhow::Result;
 pub use auto_artifactarium::Achievement;
 pub use auto_artifactarium::r#gen::protos::{AvatarInfo, Item};
+use chrono::Utc;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use crate::good::{self, fake_uninitialized_4th_line};
+use crate::AchievementFormat;
+use crate::uiaf::{SeelieAchievement, SeelieRoot, UiafAchievement, UiafInfo, UiafRoot};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ExportSettings {
@@ -308,6 +311,74 @@ impl PlayerData {
                 })
             })
             .collect()
+    }
+
+    pub fn export_achievements(&self, format: AchievementFormat) -> Result<String> {
+        match format {
+            AchievementFormat::Uiaf
+            | AchievementFormat::Cocogoat
+            | AchievementFormat::SnapGenshin
+            | AchievementFormat::Xunkong
+            | AchievementFormat::TeyvatGuide => self.export_achievements_uiaf(),
+            AchievementFormat::Seelie => self.export_achievements_seelie(),
+            AchievementFormat::Csv => self.export_achievements_csv(),
+        }
+    }
+
+    pub fn export_achievements_uiaf(&self) -> Result<String> {
+        let list = self
+            .achievements
+            .iter()
+            .map(|a| UiafAchievement {
+                id: a.id,
+                current: 0,
+                status: a.status,
+                timestamp: a.finish_timestamp.unwrap_or(0),
+            })
+            .collect();
+
+        let root = UiafRoot {
+            info: UiafInfo {
+                export_app: "Irminsul".to_string(),
+                export_app_version: env!("CARGO_PKG_VERSION").to_string(),
+                uiaf_version: "v1.1".to_string(),
+                export_timestamp: Utc::now().timestamp(),
+            },
+            list,
+        };
+
+        let json = serde_json::to_string(&root)?;
+        tracing::trace!("{json}");
+        Ok(json)
+    }
+
+    pub fn export_achievements_seelie(&self) -> Result<String> {
+        let achievements = self
+            .achievements
+            .iter()
+            .filter(|a| a.status >= 2) // Finished or RewardTaken
+            .map(|a| (a.id, SeelieAchievement { done: true }))
+            .collect();
+
+        let root = SeelieRoot { achievements };
+
+        let json = serde_json::to_string(&root)?;
+        tracing::trace!("{json}");
+        Ok(json)
+    }
+
+    pub fn export_achievements_csv(&self) -> Result<String> {
+        let mut csv = String::from("ID,Status,Current,Timestamp\n");
+        for a in &self.achievements {
+            csv.push_str(&format!(
+                "{},{},{},{}\n",
+                a.id,
+                a.status,
+                0, // current placeholder
+                a.finish_timestamp.unwrap_or(0)
+            ));
+        }
+        Ok(csv)
     }
 
     pub fn export_genshin_optimizer_materials(&self) -> HashMap<String, u32> {
