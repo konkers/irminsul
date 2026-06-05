@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Irminsul</string>
+    
+    <!-- Capture -->
+    <string name="start_capture">Start Capture</string>
+    <string name="stop_capture">Stop Capture</string>
+    <string name="capturing">Capturing…</string>
+    <string name="idle">Ready to capture</string>
+    <string name="listening_for_data">Listening for game data</string>
+    <string name="packet_capture">Packet Capture</string>
+    <string name="ready_to_capture">Ready to capture</string>
+    
+    <!-- Data Stats -->
+    <string name="artifacts">Artifacts</string>
+    <string name="characters">Characters</string>
+    <string name="weapons">Weapons</string>
+    <string name="materials">Materials</string>
+    <string name="achievements">Achievements</string>
+    <string name="data_loaded">Data loaded</string>
+    
+    <!-- Export -->
+    <string name="data_export">Data Export</string>
+    <string name="good_format">GOOD Format</string>
+    <string name="achievement_export">Achievement Export</string>
+    <string name="copy">Copy</string>
+    <string name="save">Save</string>
+    <string name="settings">Settings</string>
+    
+    <!-- Export Settings -->
+    <string name="include_data">Include Data</string>
+    <string name="character_settings">Character Settings</string>
+    <string name="artifact_settings">Artifact Settings</string>
+    <string name="weapon_settings">Weapon Settings</string>
+    <string name="character_filters">Character Filters</string>
+    <string name="artifact_filters">Artifact Filters</string>
+    <string name="weapon_filters">Weapon Filters</string>
+    <string name="level">Level</string>
+    <string name="ascension">Ascension</string>
+    <string name="constellation">Constellation</string>
+    <string name="rarity">Rarity</string>
+    <string name="refinement">Refinement</string>
+    <string name="fourth_line">Fourth Line</string>
+    <string name="initialize_fourth_line">Initialize Fourth Line</string>
+    <string name="min_level">Min Level</string>
+    <string name="min_ascension">Min Ascension</string>
+    <string name="min_constellation">Min Constellation</string>
+    <string name="min_rarity">Min Rarity</string>
+    <string name="min_refinement">Min Refinement</string>
+    <string name="special_options">Special Options</string>
+    <string name="simulate_4th_substat">Simulate 4th Substat</string>
+    
+    <!-- Achievement Formats -->
+    <string name="format_uiaf">UIAF Format</string>
+    <string name="format_seelie">Seelie Format</string>
+    <string name="format_csv">CSV Format</string>
+    <string name="format_uiaf_desc">Universal Achievement Format</string>
+    <string name="format_seelie_desc">Seelie Tracker Format</string>
+    <string name="format_csv_desc">Spreadsheet Format</string>
+    <string name="achievement_export_settings">Achievement Export Settings</string>
+    
+    <!-- VPN Capture -->
+    <string name="vpn_capture_running">Capturing via VPN…</string>
+    
+    <!-- Actions -->
+    <string name="reset_data">Reset Data</string>
+    <string name="select_pcap_file">Select PCAP File</string>
+    <string name="clear_all">Clear All</string>
+    <string name="close">Close</string>
+    <string name="no_export_history">No export history yet</string>
+    <string name="export_history">Export History</string>
+    
+    <!-- Messages -->
+    <string name="export_success">Exported successfully!</string>
+    <string name="export_failed">Export failed: %s</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
+    <string name="saved_to_downloads">Saved to Downloads</string>
+    <string name="data_reset">Data reset</string>
+    
+    <!-- Tooltip -->
+    <string name="long_press_to_select_file">Long press to select file</string>
+    <string name="app_description">Destiny Holds More Possibilities</string>
+
+    <!-- Launch Game Dialog -->
+    <string name="capture_started">Capture Started</string>
+    <string name="launch_game_hint">Please close the target game completely from the background first, then tap the button below to launch it. This avoids capturing stale connection data.</string>
+    <string name="launch_game_tip">Tip: Swipe up or long-press the recent apps screen to dismiss the game card. Make sure it\'s fully closed before relaunching.</string>
+    <string name="launch_later">Launch Manually Later</string>
+    <string name="launch_game">Launch Game</string>
+
+    <!-- Heads-up Setup Dialog -->
+    <string name="heads_up_setup_title">Heads-up Notification Setup</string>
+    <string name="heads_up_setup_message">A heads-up notification will appear when data parsing completes. Some systems disable heads-up notifications by default. Tap \"Test Notification\" to verify. If it doesn\'t appear, tap \"Go to Settings\" to enable it.</string>
+    <string name="heads_up_setup_steps_title">Steps:</string>
+    <string name="heads_up_setup_steps">Tap \"Go to Settings\" → Enable \"Heads-up notification\" → Return</string>
+    <string name="test_notification">Test Notification</string>
+    <string name="later">Later</string>
+    <string name="go_to_settings">Go to Settings</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_complete_name">Irminsul Data Parsing Complete</string>
+    <string name="notification_channel_complete_desc">High-priority alert when data parsing completes in the background</string>
+    <string name="notification_channel_capture_name">Irminsul Capture</string>
+    <string name="notification_channel_capture_desc">Foreground notification while packet capture is running</string>
+    <string name="notification_complete_title">Irminsul - Data Parsing Complete</string>
+    <string name="notification_complete_content">%1$d Characters %2$d Artifacts %3$d Weapons %4$d Achievements</string>
+    <string name="notification_capture_connections">%1$d connections</string>
+
+    <!-- Toast Messages -->
+    <string name="toast_copied_with_stats">Copied to clipboard (%1$s)</string>
+    <string name="toast_saved_to">Saved to: %1$s (%2$s)</string>
+    <string name="toast_copy_failed">Copy failed: %1$s</string>
+    <string name="toast_save_failed">Save failed: %1$s</string>
+    <string name="toast_download_failed">Download failed: %1$s</string>
+    <string name="toast_cannot_open_settings">Cannot open system settings</string>
+    <string name="toast_test_notification_sent">Test notification sent, will auto-dismiss in 5 seconds</string>
+    <string name="toast_game_not_found">Target game not found</string>
+    <string name="toast_copied_achievements">Copied to clipboard (%1$d achievements)</string>
+    <string name="toast_saved_achievements">Saved to: %1$s (%2$d achievements)</string>
+
+    <!-- Stats Format -->
+    <string name="stats_format">%1$d Characters, %2$d Artifacts, %3$d Weapons, %4$d Materials</string>
+
+    <!-- Export History -->
+    <string name="exported_data_will_appear">Exported data will appear here</string>
+
+    <!-- Other -->
+    <string name="export_history_title">Export History</string>
+    <string name="no_data_yet">No data yet</string>
+    <string name="time">Time</string>
+    <string name="type">Type</string>
+    <string name="unknown">Unknown</string>
+</resources>

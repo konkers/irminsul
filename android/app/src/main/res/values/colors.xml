@@ -1,0 +1,32 @@
+<resources>
+    <!-- Irminsul 主题颜色 -->
+    <color name="primary">#5DADE2</color>
+    <color name="primary_dark">#2E86DE</color>
+    <color name="primary_light">#87CEEB</color>
+    <color name="secondary">#F39C12</color>
+    <color name="accent">#F39C12</color>
+    
+    <!-- 背景颜色 - 深色主题 -->
+    <color name="background">#0F0F23</color>
+    <color name="background_dark">#0A0A1A</color>
+    <color name="surface">#1A1A3E</color>
+    <color name="surface_elevated">#252550</color>
+    <color name="surface_light">#2D2D5A</color>
+    
+    <!-- 文字颜色 -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B0B0D0</color>
+    <color name="text_hint">#8080A0</color>
+    
+    <!-- 状态颜色 -->
+    <color name="success">#00E676</color>
+    <color name="success_light">#B9F6CA</color>
+    <color name="error">#FF5252</color>
+    <color name="warning">#FFAB00</color>
+    <color name="info">#40C4FF</color>
+    
+    <!-- 按钮颜色 -->
+    <color name="button_capture">#4CAF50</color>
+    <color name="button_export">#2196F3</color>
+    <color name="button_settings">#7E57C2</color>
+</resources>

@@ -20,6 +20,7 @@ mod capture;
 mod good;
 mod monitor;
 mod player_data;
+mod uiaf;
 mod update;
 mod wish;
 

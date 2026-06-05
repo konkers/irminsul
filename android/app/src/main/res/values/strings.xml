@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Irminsul</string>
+    
+    <!-- Capture -->
+    <string name="start_capture">开始捕获</string>
+    <string name="stop_capture">停止捕获</string>
+    <string name="capturing">正在捕获…</string>
+    <string name="idle">等待捕获</string>
+    <string name="listening_for_data">正在监听游戏数据</string>
+    <string name="packet_capture">数据包捕获</string>
+    <string name="ready_to_capture">准备就绪</string>
+    
+    <!-- Data Stats -->
+    <string name="artifacts">圣遗物</string>
+    <string name="characters">角色</string>
+    <string name="weapons">武器</string>
+    <string name="materials">材料</string>
+    <string name="achievements">成就</string>
+    <string name="data_loaded">数据已加载</string>
+    
+    <!-- Export -->
+    <string name="data_export">数据导出</string>
+    <string name="good_format">GOOD 格式</string>
+    <string name="achievement_export">成就导出</string>
+    <string name="copy">复制</string>
+    <string name="save">保存</string>
+    <string name="settings">设置</string>
+    
+    <!-- Export Settings -->
+    <string name="include_data">包含数据</string>
+    <string name="character_settings">角色设置</string>
+    <string name="artifact_settings">圣遗物设置</string>
+    <string name="weapon_settings">武器设置</string>
+    <string name="character_filters">角色筛选</string>
+    <string name="artifact_filters">圣遗物筛选</string>
+    <string name="weapon_filters">武器筛选</string>
+    <string name="level">等级</string>
+    <string name="ascension">突破</string>
+    <string name="constellation">命座</string>
+    <string name="rarity">稀有度</string>
+    <string name="refinement">精炼</string>
+    <string name="fourth_line">第四词条</string>
+    <string name="initialize_fourth_line">初始化第四词条</string>
+    <string name="min_level">最低等级</string>
+    <string name="min_ascension">最低突破</string>
+    <string name="min_constellation">最低命座</string>
+    <string name="min_rarity">最低稀有度</string>
+    <string name="min_refinement">最低精炼</string>
+    <string name="special_options">特殊选项</string>
+    <string name="simulate_4th_substat">模拟第四个词条</string>
+    
+    <!-- Achievement Formats -->
+    <string name="format_uiaf">UIAF 格式</string>
+    <string name="format_seelie">Seelie 格式</string>
+    <string name="format_csv">CSV 格式</string>
+    <string name="format_uiaf_desc">通用成就格式</string>
+    <string name="format_seelie_desc">Seelie 追踪器格式</string>
+    <string name="format_csv_desc">电子表格格式</string>
+    <string name="achievement_export_settings">成就导出设置</string>
+    
+    <!-- VPN Capture -->
+    <string name="vpn_capture_running">正在通过VPN抓包…</string>
+    
+    <!-- Actions -->
+    <string name="reset_data">重置数据</string>
+    <string name="select_pcap_file">选择 PCAP 文件</string>
+    <string name="clear_all">清除全部</string>
+    <string name="close">关闭</string>
+    <string name="no_export_history">暂无导出记录</string>
+    <string name="export_history">导出历史</string>
+    
+    <!-- Messages -->
+    <string name="export_success">导出成功！</string>
+    <string name="export_failed">导出失败：%s</string>
+    <string name="copied_to_clipboard">已复制到剪贴板</string>
+    <string name="saved_to_downloads">已保存到下载目录</string>
+    <string name="data_reset">数据已重置</string>
+    
+    <!-- Tooltip -->
+    <string name="long_press_to_select_file">长按选择文件</string>
+    <string name="app_description">命运有了更多可能</string>
+
+    <!-- Launch Game Dialog -->
+    <string name="capture_started">抓包已启动</string>
+    <string name="launch_game_hint">请先将目标游戏从后台彻底退出，再点击下方按钮启动游戏，避免抓到旧连接残留数据。</string>
+    <string name="launch_game_tip">提示：上滑/长按多任务界面，将游戏卡片向上滑出，确认彻底退出后台后再启动。</string>
+    <string name="launch_later">稍后手动启动</string>
+    <string name="launch_game">启动游戏</string>
+
+    <!-- Heads-up Setup Dialog -->
+    <string name="heads_up_setup_title">悬浮弹窗设置</string>
+    <string name="heads_up_setup_message">数据解析完成后需要弹出悬浮通知提醒您，部分系统默认关闭了悬浮通知。请先点击「测试通知」确认，若未弹出请点击「去设置」打开悬浮通知开关。</string>
+    <string name="heads_up_setup_steps_title">操作步骤：</string>
+    <string name="heads_up_setup_steps">点击「去设置」→ 打开「悬浮通知」开关 → 返回即可</string>
+    <string name="test_notification">测试通知</string>
+    <string name="later">稍后再说</string>
+    <string name="go_to_settings">去系统设置</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_complete_name">Irminsul 数据解析完成</string>
+    <string name="notification_channel_complete_desc">数据解析完成时弹出强提醒，便于在后台抓包时收到通知</string>
+    <string name="notification_channel_capture_name">Irminsul 抓包</string>
+    <string name="notification_channel_capture_desc">抓包进行中的前台通知</string>
+    <string name="notification_complete_title">Irminsul - 数据解析完成</string>
+    <string name="notification_complete_content">%1$d角色 %2$d圣遗物 %3$d武器 %4$d成就</string>
+    <string name="notification_capture_connections">%1$d 连接</string>
+
+    <!-- Toast Messages -->
+    <string name="toast_copied_with_stats">已复制到剪贴板 (%1$s)</string>
+    <string name="toast_saved_to">下载到: %1$s (%2$s)</string>
+    <string name="toast_copy_failed">复制失败: %1$s</string>
+    <string name="toast_save_failed">保存失败: %1$s</string>
+    <string name="toast_download_failed">下载失败: %1$s</string>
+    <string name="toast_cannot_open_settings">无法打开系统设置</string>
+    <string name="toast_test_notification_sent">已发送测试通知，5秒后自动消失</string>
+    <string name="toast_game_not_found">未检测到目标游戏</string>
+    <string name="toast_copied_achievements">已复制到剪贴板 (%1$d成就)</string>
+    <string name="toast_saved_achievements">下载到: %1$s (%2$d成就)</string>
+
+    <!-- Stats Format -->
+    <string name="stats_format">%1$d角色, %2$d圣遗物, %3$d武器, %4$d材料</string>
+
+    <!-- Export History -->
+    <string name="exported_data_will_appear">导出的数据将显示在这里</string>
+
+    <!-- Other -->
+    <string name="export_history_title">导出历史</string>
+    <string name="no_data_yet">暂无数据</string>
+    <string name="time">时间</string>
+    <string name="type">类型</string>
+    <string name="unknown">未知</string>
+</resources>

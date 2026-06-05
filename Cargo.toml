@@ -6,6 +6,11 @@ edition = "2024"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
 rust-version = "1.85"
 
+[lib]
+name = "irminsul"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
 [package.metadata.docs.rs]
 all-features = true
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
@@ -14,18 +19,26 @@ targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 # Keep these in sync with dev-dependencies below
 anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "222bab5d8f3f7c5052360672a9d882e766e70062" }
 flate2 = "1.1.9"
-tokio = { version = "1.47.1", features = [
-	"rt",
-	"tokio-macros",
-	"macros",
-	"rt-multi-thread",
-] }
 
 anyhow = "1.0.99"
 async-watcher = "0.3.0"
 auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "07be683fb80e9940d8cc629ab769dbd6307bcaaa" }
 base64 = "0.22.1"
 chrono = "0.4.42"
+indexmap = "2.11.1"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1.0.143", features = ["alloc"] }
+tracing = { version = "0.1.41" }
+
+# Desktop-only dependencies
+[target.'cfg(not(target_os = "android"))'.dependencies]
+anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "222bab5d8f3f7c5052360672a9d882e766e70062", features = ["network"] }
+tokio = { version = "1.47.1", features = [
+	"rt",
+	"tokio-macros",
+	"macros",
+	"rt-multi-thread",
+] }
 clap = { version = "4.5.47", features = ["derive"] }
 ctrlc = "3.4.7"
 eframe = { version = "0.32", default-features = false, features = [
@@ -44,18 +57,14 @@ egui_material_icons = "0.4.0"
 env_logger = "0.11.8"
 futures = "0.3.31"
 futures-util = "0.3.31"
-indexmap = "2.11.1"
 log = "0.4.27"
 notify = "5.2.0"
 open = "5.3.2"
 regex = "1.11.2"
 reqwest = { version = "0.12.23", features = ["gzip", "stream"] }
 self_update = "0.42.0"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = { version = "1.0.143", features = ["alloc"] }
 tempfile = "3.21.0"
 tokio-util = "0.7.16"
-tracing = { version = "0.1.41" }
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
@@ -67,10 +76,17 @@ windows = { version = "0.61.3", features = [
 	"Win32_UI_Shell",
 ] }
 
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+
 [build-dependencies]
 # Keep these in sync with dependencies above
 anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "222bab5d8f3f7c5052360672a9d882e766e70062" }
 flate2 = "1.1.9"
+
+# Desktop build-dependencies (needs network for game data download)
+[target.'cfg(not(target_os = "android"))'.build-dependencies]
+anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "222bab5d8f3f7c5052360672a9d882e766e70062", features = ["network"] }
 tokio = { version = "1.47.1", features = [
 	"rt",
 	"tokio-macros",
@@ -78,6 +94,7 @@ tokio = { version = "1.47.1", features = [
 	"rt-multi-thread",
 ] }
 
+[target.'cfg(windows)'.build-dependencies]
 winresource = "0.1.23"
 
 [profile.release]
@@ -91,6 +108,8 @@ opt-level = 2
 # [patch."https://github.com/konkers/anime-game-data"]
 # anime-game-data = { path = "../anime-game-data" }
 
-# Uncomment for local debugging
-# [patch."https://github.com/konkers/auto-artifactarium"]
-# auto-artifactarium = { path = "../auto-artifactarium" }
+[patch."https://github.com/konkers/anime-game-data"]
+anime-game-data = { git = "https://github.com/shadyrispy/anime-game-data", branch = "main" }
+
+[patch."https://github.com/konkers/auto-artifactarium"]
+auto-artifactarium = { git = "https://github.com/shadyrispy/auto-artifactarium", branch = "feat/heuristic-matching" }

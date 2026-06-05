@@ -1,0 +1,132 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.esc.irminsul'
+    compileSdk 35
+    ndkVersion "27.0.12077973"
+
+    defaultConfig {
+        applicationId "com.esc.irminsul"
+        minSdk 21
+        targetSdk 35
+        versionCode 3
+        versionName "1.1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags ""
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("release.keystore")
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "irminsul123"
+            keyAlias System.getenv("KEY_ALIAS") ?: "irminsul"
+            keyPassword System.getenv("KEY_PASSWORD") ?: "irminsul123"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.4'
+    }
+    lint {
+        abortOnError false
+    }
+    externalNativeBuild {
+        cmake {
+            path file("src/main/c/CMakeLists.txt")
+            version "3.22.1"
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs {
+                srcDirs 'src/main/jniLibs'
+            }
+        }
+    }
+
+    // Rust library build task using cargo-ndk
+    // Builds from the project root directory (../../..) which contains our Cargo.toml
+    task buildRustLibs(type: Exec) {
+        workingDir "${projectDir}/../.."
+        environment 'PATH', "${System.getenv('HOME')}/.cargo/bin:${System.getenv('PATH')}"
+        commandLine 'cargo', 'ndk',
+                '-t', 'arm64-v8a',
+                '-o', "${projectDir}/src/main/jniLibs",
+                'build',
+                '--release',
+                '--lib'
+    }
+
+    preBuild.dependsOn buildRustLibs
+
+    packagingOptions {
+        resources.excludes += [
+                'com/sun/jna/aix-ppc/**',
+                'com/sun/jna/aix-ppc64/**',
+                'com/sun/jna/darwin/**',
+                'com/sun/jna/freebsd-*/**',
+                'com/sun/jna/linux-*/**',
+                'com/sun/jna/openbsd-*/**',
+                'com/sun/jna/sunos-*/**',
+                'com/sun/jna/win32-*/**'
+        ]
+    }
+}
+
+dependencies {
+    // Android Core
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+
+    // Compose
+    implementation platform('androidx.compose:compose-bom:2024.06.00')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.activity:activity-compose:1.9.0'
+
+    // Lifecycle & ViewModel
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.2'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.2'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2'
+
+    // Test dependencies
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation platform('androidx.compose:compose-bom:2024.06.00')
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+}

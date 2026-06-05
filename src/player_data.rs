@@ -4,10 +4,22 @@ use anime_game_data::{AnimeGameData, Property, SkillType};
 use anyhow::Result;
 pub use auto_artifactarium::Achievement;
 pub use auto_artifactarium::r#gen::protos::{AvatarInfo, Item};
+use chrono::Utc;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use crate::good::{self, fake_uninitialized_4th_line};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AchievementFormat {
+    Uiaf,
+    Seelie,
+    Cocogoat,
+    SnapGenshin,
+    Xunkong,
+    TeyvatGuide,
+    Csv,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ExportSettings {
@@ -30,6 +42,27 @@ pub struct ExportSettings {
     pub min_weapon_rarity: u32,
 }
 
+impl Default for ExportSettings {
+    fn default() -> Self {
+        Self {
+            include_characters: true,
+            include_artifacts: true,
+            include_weapons: true,
+            include_materials: true,
+            fake_initialize_4th_line: false,
+            min_character_level: 1,
+            min_character_ascension: 0,
+            min_character_constellation: 0,
+            min_artifact_level: 0,
+            min_artifact_rarity: 1,
+            min_weapon_level: 1,
+            min_weapon_refinement: 1,
+            min_weapon_ascension: 0,
+            min_weapon_rarity: 1,
+        }
+    }
+}
+
 pub struct PlayerData {
     game_data: AnimeGameData,
     achievements: Vec<Achievement>,
@@ -48,6 +81,36 @@ impl PlayerData {
             items: Vec::new(),
             character_equip_guid_map: HashMap::new(),
         }
+    }
+
+    pub fn item_count(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn character_count(&self) -> usize {
+        self.characters.len()
+    }
+
+    pub fn achievement_count(&self) -> usize {
+        self.achievements.len()
+    }
+
+    pub fn artifact_count(&self) -> usize {
+        self.items
+            .iter()
+            .filter(|item| item.has_equip() && item.equip().has_reliquary())
+            .count()
+    }
+
+    pub fn weapon_count(&self) -> usize {
+        self.items
+            .iter()
+            .filter(|item| item.has_equip() && item.equip().has_weapon())
+            .count()
+    }
+
+    pub fn material_count(&self) -> usize {
+        self.items.iter().filter(|item| item.has_material()).count()
     }
 
     pub fn process_achievements(&mut self, achievements: &[Achievement]) {
@@ -308,6 +371,83 @@ impl PlayerData {
                 })
             })
             .collect()
+    }
+
+    pub fn export_achievements(&self, format: AchievementFormat) -> Result<String> {
+        match format {
+            AchievementFormat::Uiaf
+            | AchievementFormat::Cocogoat
+            | AchievementFormat::SnapGenshin
+            | AchievementFormat::Xunkong
+            | AchievementFormat::TeyvatGuide => self.export_achievements_uiaf(),
+            AchievementFormat::Seelie => self.export_achievements_seelie(),
+            AchievementFormat::Csv => self.export_achievements_csv(),
+        }
+    }
+
+    pub fn export_achievements_uiaf(&self) -> Result<String> {
+        use crate::uiaf::{UiafAchievement, UiafInfo, UiafRoot};
+
+        let achievement_list = self
+            .achievements
+            .iter()
+            .map(|achievement| UiafAchievement {
+                id: achievement.id,
+                current: 0,
+                status: achievement.status,
+                timestamp: achievement.finish_timestamp.unwrap_or(0),
+            })
+            .collect();
+
+        let root = UiafRoot {
+            info: UiafInfo {
+                export_app: "Irminsul".to_string(),
+                export_app_version: env!("CARGO_PKG_VERSION").to_string(),
+                uiaf_version: "v1.1".to_string(),
+                export_timestamp: Utc::now().timestamp(),
+            },
+            list: achievement_list,
+        };
+
+        let json = serde_json::to_string(&root)?;
+        tracing::trace!("{json}");
+        Ok(json)
+    }
+
+    pub fn export_achievements_seelie(&self) -> Result<String> {
+        use crate::uiaf::{SeelieAchievement, SeelieRoot};
+
+        let achievements = self
+            .achievements
+            .iter()
+            .filter(|achievement| achievement.status >= 2)
+            .map(|achievement| (achievement.id, SeelieAchievement { done: true }))
+            .collect();
+
+        let root = SeelieRoot { achievements };
+        let json = serde_json::to_string(&root)?;
+        tracing::trace!("{json}");
+        Ok(json)
+    }
+
+    pub fn export_achievements_csv(&self) -> Result<String> {
+        use std::fmt::Write;
+
+        let mut csv = String::new();
+        writeln!(csv, "ID,Status,Current,Timestamp")?;
+
+        for achievement in &self.achievements {
+            writeln!(
+                csv,
+                "{},{},{},{}",
+                achievement.id,
+                achievement.status,
+                0,
+                achievement.finish_timestamp.unwrap_or(0)
+            )?;
+        }
+
+        Ok(csv)
     }
 
     pub fn export_genshin_optimizer_materials(&self) -> HashMap<String, u32> {
