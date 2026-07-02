@@ -33,8 +33,8 @@ data class UiState(
     val isCapturing: Boolean = false,
     val isPendingStateChange: Boolean = false,
     val showLaunchGameDialog: Boolean = false,
-    val showHeadsUpSetupDialog: Boolean = false,
-    val headsUpSetupDismissed: Boolean = false,
+    val showPermissionDialog: Boolean = false,
+    val permissionState: PermissionHelper.PermissionState = PermissionHelper.PermissionState(true, true, false, true, false),
     val itemsLoaded: Boolean = false,
     val charactersLoaded: Boolean = false,
     val weaponsLoaded: Boolean = false,
@@ -79,7 +79,6 @@ class MainViewModel(private val context: Context) : ViewModel() {
         private const val EXPORT_FORMAT_SEELIE = "Seelie"
         private const val EXPORT_FORMAT_CSV = "CSV"
         private const val PREFS_NAME = "irminsul_prefs"
-        private const val KEY_HEADS_UP_SETUP_DISMISSED = "heads_up_setup_dismissed"
     }
 
     private val _uiState = MutableStateFlow(UiState())
@@ -193,15 +192,50 @@ class MainViewModel(private val context: Context) : ViewModel() {
             }
         }
 
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val alreadyDismissed = prefs.getBoolean(KEY_HEADS_UP_SETUP_DISMISSED, false)
-        _uiState.value = _uiState.value.copy(headsUpSetupDismissed = alreadyDismissed)
+        checkAndShowPermissionDialog()
     }
 
-    fun onNotificationPermissionGranted() {
-        if (!_uiState.value.headsUpSetupDismissed) {
+    fun checkAndShowPermissionDialog() {
+        val state = PermissionHelper.checkPermissions(context)
+        _uiState.value = _uiState.value.copy(permissionState = state)
+        if (!state.allRequiredGranted) {
             ensureCompletionChannelExists()
-            _uiState.value = _uiState.value.copy(showHeadsUpSetupDialog = true)
+            _uiState.value = _uiState.value.copy(showPermissionDialog = true)
+        } else {
+            _uiState.value = _uiState.value.copy(showPermissionDialog = false)
+        }
+    }
+
+    fun recheckPermissions() {
+        val state = PermissionHelper.checkPermissions(context)
+        _uiState.value = _uiState.value.copy(permissionState = state)
+        if (state.allRequiredGranted && _uiState.value.showPermissionDialog) {
+            showToast(context.getString(R.string.permission_required_granted))
+        }
+    }
+
+    fun dismissPermissionDialog() {
+        // 必须权限未通过时不允许关闭
+        if (!_uiState.value.permissionState.allRequiredGranted) return
+        _uiState.value = _uiState.value.copy(showPermissionDialog = false)
+    }
+
+    fun requestVpnPermission(launcher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>) {
+        val intent = PermissionHelper.getVpnPermissionIntent(context)
+        if (intent != null) {
+            launcher.launch(intent)
+        } else {
+            // 已有 VPN 权限，重新检查
+            recheckPermissions()
+        }
+    }
+
+    fun openBatteryOptimizationSettings(launcher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>) {
+        try {
+            launcher.launch(PermissionHelper.getBatteryOptimizationIntent(context))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to open battery optimization settings", e)
+            showToast(context.getString(R.string.toast_cannot_open_settings))
         }
     }
 
@@ -228,43 +262,104 @@ class MainViewModel(private val context: Context) : ViewModel() {
         }
     }
 
-    fun dismissHeadsUpSetupDialog() {
-        _uiState.value = _uiState.value.copy(
-            showHeadsUpSetupDialog = false,
-            headsUpSetupDismissed = true
-        )
-        try {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putBoolean(KEY_HEADS_UP_SETUP_DISMISSED, true)
-                .apply()
-        } catch (e: Exception) {
-            Log.d(TAG, "Failed to save dismiss flag: ${e.message}")
+    fun requestNotificationPermission(launcher: androidx.activity.result.ActivityResultLauncher<String>) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+: 尝试重新请求 POST_NOTIFICATIONS 权限
+            // 如果用户之前选了"不再询问"，系统会自动引导到设置页
+            launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            // Android 13 以下不需要运行时权限，直接打开通知设置
+            openAppNotificationSettingsWithFallback()
         }
     }
 
-    fun openAppNotificationSettings() {
+    fun openNotificationSettings() {
+        // 通知权限被关闭时，直接打开应用详情页让用户去权限设置
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            // POST_NOTIFICATIONS 被拒绝，打开应用详情页
+            openAppDetailsSettings()
+        } else {
+            openAppNotificationSettingsWithFallback()
+        }
+    }
+
+    private fun openAppNotificationSettingsWithFallback() {
+        // 尝试 ROM 专有 → 标准 APP_NOTIFICATION_SETTINGS → 应用详情页
+        val intents = mutableListOf<Intent>()
+        RomUtils.getNotificationSettingsIntent(context)?.let { intents.add(it) }
+        intents.add(PermissionHelper.getAppNotificationSettingsIntent(context))
+        intents.add(PermissionHelper.getAppDetailsSettingsIntent(context))
+
+        for (intent in intents) {
+            try {
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(intent)
+                addLog("Opened notification settings")
+                return
+            } catch (e: android.content.ActivityNotFoundException) {
+                Log.d(TAG, "Notification settings intent not available: ${intent.component ?: intent.action}")
+            } catch (e: SecurityException) {
+                Log.d(TAG, "Notification settings intent blocked: ${intent.component ?: intent.action}")
+            }
+        }
+        Log.e(TAG, "All notification settings intents failed")
+        showToast(context.getString(R.string.toast_cannot_open_settings))
+    }
+
+    fun openChannelSettings() {
+        // 尝试渠道设置 → APP_NOTIFICATION_SETTINGS → 应用详情页
+        val intents = mutableListOf<Intent>()
+        intents.add(PermissionHelper.getChannelSettingsIntent(context, CaptureService.NOTIFICATION_CHANNEL_COMPLETE_ID))
+        intents.add(PermissionHelper.getAppNotificationSettingsIntent(context))
+        intents.add(PermissionHelper.getAppDetailsSettingsIntent(context))
+
+        for (intent in intents) {
+            try {
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(intent)
+                addLog("Opened notification channel settings")
+                return
+            } catch (e: android.content.ActivityNotFoundException) {
+                Log.d(TAG, "Channel settings intent not available: ${intent.component ?: intent.action}")
+            } catch (e: SecurityException) {
+                Log.d(TAG, "Channel settings intent blocked: ${intent.component ?: intent.action}")
+            }
+        }
+        Log.e(TAG, "All channel settings intents failed")
+        showToast(context.getString(R.string.toast_cannot_open_settings))
+    }
+
+    private fun openAppDetailsSettings() {
         try {
-            val intent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
-                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                putExtra(Settings.EXTRA_CHANNEL_ID, CaptureService.NOTIFICATION_CHANNEL_COMPLETE_ID)
+            val intent = PermissionHelper.getAppDetailsSettingsIntent(context).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(intent)
-            addLog("Opened notification channel settings")
+            addLog("Opened app details settings")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to open channel notification settings", e)
+            Log.e(TAG, "Failed to open app details settings", e)
+            showToast(context.getString(R.string.toast_cannot_open_settings))
+        }
+    }
+
+    fun openAutoStartSettings() {
+        // 尝试 ROM 专有自启动页 → 应用详情页
+        val romIntent = RomUtils.getAutoStartSettingsIntent(context)
+        if (romIntent != null) {
             try {
-                val fallback = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(fallback)
-            } catch (e2: Exception) {
-                Log.e(TAG, "Failed to open app notification settings", e2)
-                showToast(context.getString(R.string.toast_cannot_open_settings))
+                romIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(romIntent)
+                addLog("Opened auto-start settings")
+                return
+            } catch (e: android.content.ActivityNotFoundException) {
+                Log.d(TAG, "Auto-start settings intent not available")
+            } catch (e: SecurityException) {
+                Log.d(TAG, "Auto-start settings intent blocked")
             }
         }
+        // 回退到应用详情页
+        openAppDetailsSettings()
     }
 
     fun testHeadsUpNotification() {
@@ -383,6 +478,14 @@ class MainViewModel(private val context: Context) : ViewModel() {
                     _uiState.value = _uiState.value.copy(showLaunchGameDialog = false)
                     return
                 }
+            } catch (e: android.content.ActivityNotFoundException) {
+                Log.d(TAG, "Package $pkg launch activity not found")
+            } catch (e: SecurityException) {
+                // 国产ROM关联启动权限缺失
+                Log.e(TAG, "Cannot launch $pkg, possibly blocked by ROM", e)
+                showToast(context.getString(R.string.toast_launch_blocked))
+                _uiState.value = _uiState.value.copy(showLaunchGameDialog = false)
+                return
             } catch (e: Exception) {
                 Log.d(TAG, "Package $pkg not found")
             }
@@ -532,6 +635,31 @@ class MainViewModel(private val context: Context) : ViewModel() {
             Log.e(TAG, "Error copying achievements", e)
             showToast(context.getString(R.string.toast_copy_failed, e.message ?: ""))
             addLog("Copy failed: ${e.message}")
+        }
+    }
+
+    fun openInCocogoat() {
+        viewModelScope.launch {
+            try {
+                val json = dataStore.exportAchievements(DataStore.FORMAT_UIAF)
+                val cocogoatUrl = postToMemoApi(json)
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(cocogoatUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                    addLog("Opened in Cocogoat")
+                } catch (e: android.content.ActivityNotFoundException) {
+                    // 没有浏览器应用，复制链接到剪贴板
+                    copyToClipboard(cocogoatUrl)
+                    showToast(context.getString(R.string.toast_no_browser_copied))
+                    addLog("No browser found, URL copied to clipboard")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error opening in Cocogoat", e)
+                showToast(context.getString(R.string.toast_cocogoat_failed, e.message ?: ""))
+                addLog("Cocogoat failed: ${e.message}")
+            }
         }
     }
 

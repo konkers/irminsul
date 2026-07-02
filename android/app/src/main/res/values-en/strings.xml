@@ -25,6 +25,7 @@
     <string name="achievement_export">Achievement Export</string>
     <string name="copy">Copy</string>
     <string name="save">Save</string>
+    <string name="open">Open</string>
     <string name="settings">Settings</string>
     
     <!-- Export Settings -->
@@ -88,13 +89,29 @@
     <string name="launch_later">Launch Manually Later</string>
     <string name="launch_game">Launch Game</string>
 
-    <!-- Heads-up Setup Dialog -->
-    <string name="heads_up_setup_title">Heads-up Notification Setup</string>
-    <string name="heads_up_setup_message">A heads-up notification will appear when data parsing completes. Some systems disable heads-up notifications by default. Tap \"Test Notification\" to verify. If it doesn\'t appear, tap \"Go to Settings\" to enable it.</string>
-    <string name="heads_up_setup_steps_title">Steps:</string>
-    <string name="heads_up_setup_steps">Tap \"Go to Settings\" → Enable \"Heads-up notification\" → Return</string>
+    <!-- Permission Setup Dialog -->
+    <string name="permission_setup_title">Permission Setup</string>
+    <string name="permission_all_ready_title">Permissions Ready</string>
+    <string name="permission_setup_message">Please enable the following permissions. Required permissions must be granted to close this dialog.</string>
+    <string name="permission_required_section">Required</string>
+    <string name="permission_recommended_section">Recommended (optional)</string>
+    <string name="permission_notification">Notification Permission</string>
+    <string name="permission_heads_up">Heads-up Notification</string>
+    <string name="permission_vpn">VPN Permission</string>
+    <string name="permission_battery_optimization">Battery Optimization Exemption</string>
+    <string name="permission_auto_start">Auto-start Management</string>
+    <string name="permission_granted">Enabled</string>
+    <string name="permission_not_granted">Not enabled</string>
+    <string name="permission_manual_required">Manual setup required</string>
+    <string name="permission_open_settings">Go to Settings</string>
+    <string name="permission_authorize">Authorize</string>
+    <string name="permission_recheck">Re-check</string>
+    <string name="permission_done">Done</string>
+    <string name="permission_required_granted">All required permissions are enabled</string>
+    <string name="permission_all_granted">All permissions are enabled</string>
+    <string name="permission_channel_hint">Tap here to adjust notification channel settings (heads-up, etc.)</string>
+    <string name="toast_auto_start_not_available">Auto-start settings not available on this system</string>
     <string name="test_notification">Test Notification</string>
-    <string name="later">Later</string>
     <string name="go_to_settings">Go to Settings</string>
 
     <!-- Notifications -->
@@ -117,6 +134,9 @@
     <string name="toast_game_not_found">Target game not found</string>
     <string name="toast_copied_achievements">Copied to clipboard (%1$d achievements)</string>
     <string name="toast_saved_achievements">Saved to: %1$s (%2$d achievements)</string>
+    <string name="toast_cocogoat_failed">Failed to open Cocogoat: %1$s</string>
+    <string name="toast_no_browser_copied">No browser found, URL copied to clipboard</string>
+    <string name="toast_launch_blocked">Cannot launch game. Please allow Irminsul to launch other apps in system settings.</string>
 
     <!-- Stats Format -->
     <string name="stats_format">%1$d Characters, %2$d Artifacts, %3$d Weapons, %4$d Materials</string>

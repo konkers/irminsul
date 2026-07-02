@@ -19,7 +19,41 @@ class MainActivity : ComponentActivity() {
         MainViewModelFactory(applicationContext)
     }
 
+    // VPN 权限请求 — 初始权限检查和抓包时共用
     private val vpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            viewModel.addLog("VPN 权限已开启")
+        } else {
+            viewModel.addLog("VPN 权限被拒绝")
+        }
+        // 无论结果如何都重新检查权限状态
+        viewModel.recheckPermissions()
+    }
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.addLog("通知权限已开启")
+        } else {
+            viewModel.addLog("通知权限被拒绝")
+        }
+        viewModel.recheckPermissions()
+    }
+
+    private val captureNotificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            viewModel.addLog("通知权限被拒绝，通知可能无法显示")
+        }
+        viewModel.startVpnCapture()
+    }
+
+    // 抓包时如果 VPN 权限还没拿到，再请求一次
+    private val captureVpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -30,23 +64,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            viewModel.onNotificationPermissionGranted()
-        } else {
-            viewModel.addLog("通知权限被拒绝，通知可能无法显示")
-        }
-    }
-
-    private val captureNotificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) {
-            viewModel.addLog("通知权限被拒绝，通知可能无法显示")
-        }
-        viewModel.startVpnCapture()
+    private val batteryOptimizationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        viewModel.recheckPermissions()
     }
 
     private val pcapFileLauncher = registerForActivityResult(
@@ -80,8 +101,11 @@ class MainActivity : ComponentActivity() {
                 ) {
                     MainScreen(
                         viewModel = viewModel,
+                        vpnPermissionLauncher = vpnPermissionLauncher,
+                        batteryOptimizationLauncher = batteryOptimizationLauncher,
+                        notificationPermissionLauncher = notificationPermissionLauncher,
                         onToggleCapture = {
-                            viewModel.toggleCapture(vpnPermissionLauncher) {
+                            viewModel.toggleCapture(captureVpnPermissionLauncher) {
                                 checkNotificationPermissionAndStartCapture()
                             }
                         },
@@ -93,7 +117,8 @@ class MainActivity : ComponentActivity() {
                         onDownloadGood = { viewModel.downloadGood() },
                         onCopyAchievements = { viewModel.copyAchievements() },
                         onDownloadAchievements = { viewModel.downloadAchievements() },
-                        onSetAchievementFormat = { format -> viewModel.setAchievementExportFormat(format) }
+                        onSetAchievementFormat = { format -> viewModel.setAchievementExportFormat(format) },
+                        onOpenAchievements = { viewModel.openInCocogoat() }
                     )
                 }
             }
@@ -102,23 +127,18 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.recheckPermissions()
+    }
+
     private fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                val prefs = getSharedPreferences("irminsul_prefs", MODE_PRIVATE)
-                val hasAskedBefore = prefs.getBoolean("notification_permission_asked", false)
-                if (!hasAskedBefore) {
-                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    prefs.edit().putBoolean("notification_permission_asked", true).apply()
-                } else if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                    viewModel.onNotificationPermissionGranted()
-                }
-            } else {
-                viewModel.onNotificationPermissionGranted()
+                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             }
-        } else {
-            viewModel.onNotificationPermissionGranted()
         }
+        // ViewModel init 会自动调用 checkAndShowPermissionDialog
     }
 }
 

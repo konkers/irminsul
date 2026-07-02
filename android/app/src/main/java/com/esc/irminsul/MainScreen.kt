@@ -88,6 +88,9 @@ import java.util.Locale
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
+    vpnPermissionLauncher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>,
+    batteryOptimizationLauncher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>,
+    notificationPermissionLauncher: androidx.activity.result.ActivityResultLauncher<String>,
     onToggleCapture: () -> Unit,
     onOpenPcapFile: () -> Unit,
     onResetData: () -> Unit,
@@ -95,7 +98,8 @@ fun MainScreen(
     onDownloadGood: () -> Unit,
     onCopyAchievements: () -> Unit,
     onDownloadAchievements: () -> Unit,
-    onSetAchievementFormat: (String) -> Unit
+    onSetAchievementFormat: (String) -> Unit,
+    onOpenAchievements: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -182,6 +186,7 @@ fun MainScreen(
                 canExport = uiState.canExportAchievements,
                 currentFormat = uiState.achievementExportFormat,
                 onCopy = onCopyAchievements,
+                onOpen = onOpenAchievements,
                 onDownload = onDownloadAchievements,
                 onSettings = { showAchievementSettingsDialog = true }
             )
@@ -206,11 +211,19 @@ fun MainScreen(
             )
         }
 
-        if (uiState.showHeadsUpSetupDialog) {
-            HeadsUpSetupDialog(
-                onOpenSettings = { viewModel.openAppNotificationSettings() },
+        if (uiState.showPermissionDialog) {
+            PermissionSetupDialog(
+                permissionState = uiState.permissionState,
+                onOpenNotificationSettings = {
+                    viewModel.requestNotificationPermission(notificationPermissionLauncher)
+                },
+                onOpenChannelSettings = { viewModel.openChannelSettings() },
+                onOpenAutoStartSettings = { viewModel.openAutoStartSettings() },
+                onRequestVpnPermission = { viewModel.requestVpnPermission(vpnPermissionLauncher) },
+                onOpenBatterySettings = { viewModel.openBatteryOptimizationSettings(batteryOptimizationLauncher) },
                 onTestNotification = { viewModel.testHeadsUpNotification() },
-                onDismiss = { viewModel.dismissHeadsUpSetupDialog() }
+                onRecheck = { viewModel.recheckPermissions() },
+                onDismiss = { viewModel.dismissPermissionDialog() }
             )
         }
 
@@ -694,6 +707,7 @@ fun AchievementExportSection(
     canExport: Boolean,
     currentFormat: String,
     onCopy: () -> Unit,
+    onOpen: () -> Unit,
     onDownload: () -> Unit,
     onSettings: () -> Unit
 ) {
@@ -765,15 +779,24 @@ fun AchievementExportSection(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ExportActionButton(
-                    icon = R.drawable.ic_copy,
-                    label = stringResource(R.string.copy),
-                    enabled = canExport,
-                    onClick = onCopy
-                )
-                
+                if (currentFormat == "UIAF") {
+                    ExportActionButton(
+                        icon = R.drawable.ic_upload,
+                        label = stringResource(R.string.open),
+                        enabled = canExport,
+                        onClick = onOpen
+                    )
+                } else {
+                    ExportActionButton(
+                        icon = R.drawable.ic_copy,
+                        label = stringResource(R.string.copy),
+                        enabled = canExport,
+                        onClick = onCopy
+                    )
+                }
+
                 Spacer(modifier = Modifier.width(14.dp))
-                
+
                 ExportActionButton(
                     icon = R.drawable.ic_download,
                     label = stringResource(R.string.save),
@@ -1144,15 +1167,24 @@ fun LaunchGameDialog(
 }
 
 @Composable
-fun HeadsUpSetupDialog(
-    onOpenSettings: () -> Unit,
+fun PermissionSetupDialog(
+    permissionState: PermissionHelper.PermissionState,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenChannelSettings: () -> Unit,
+    onOpenAutoStartSettings: () -> Unit,
+    onRequestVpnPermission: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
     onTestNotification: () -> Unit,
+    onRecheck: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    // 必须权限未通过时不允许关闭
+    val canClose = permissionState.allRequiredGranted
+    Dialog(onDismissRequest = { if (canClose) onDismiss() }) {
         Card(
             modifier = Modifier
-                .padding(horizontal = 28.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
                 .border(1.dp, Border.copy(alpha = 0.5f), RoundedCornerShape(20.dp)),
             colors = CardDefaults.cardColors(
                 containerColor = Surface.copy(alpha = 0.98f)
@@ -1163,119 +1195,272 @@ fun HeadsUpSetupDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Title
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
-                        .background(Warning.copy(alpha = 0.18f)),
+                        .background(
+                            if (canClose) Success.copy(alpha = 0.18f)
+                            else Warning.copy(alpha = 0.18f)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_error),
+                        painter = painterResource(
+                            id = if (canClose) R.drawable.ic_check else R.drawable.ic_error
+                        ),
                         contentDescription = null,
-                        tint = Warning,
-                        modifier = Modifier.size(26.dp)
+                        tint = if (canClose) Success else Warning,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = stringResource(R.string.heads_up_setup_title),
-                    fontSize = 19.sp,
+                    text = stringResource(
+                        if (canClose) R.string.permission_all_ready_title
+                        else R.string.permission_setup_title
+                    ),
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = stringResource(R.string.heads_up_setup_message),
-                    fontSize = 13.sp,
+                    text = stringResource(R.string.permission_setup_message),
+                    fontSize = 12.sp,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
-                    lineHeight = 19.sp
+                    lineHeight = 17.sp
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // === 必须权限 ===
+                Text(
+                    text = stringResource(R.string.permission_required_section),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Accent,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // 1. Notification permission
+                PermissionItem(
+                    label = stringResource(R.string.permission_notification),
+                    status = permissionState.notificationGranted,
+                    actionLabel = stringResource(R.string.permission_open_settings),
+                    onAction = onOpenNotificationSettings
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // 2. Heads-up notification
+                PermissionItem(
+                    label = stringResource(R.string.permission_heads_up),
+                    status = permissionState.headsUpEnabled,
+                    actionLabel = stringResource(R.string.permission_open_settings),
+                    onAction = onOpenChannelSettings
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // 3. VPN permission
+                PermissionItem(
+                    label = stringResource(R.string.permission_vpn),
+                    status = permissionState.vpnPermissionGranted,
+                    actionLabel = stringResource(R.string.permission_authorize),
+                    onAction = onRequestVpnPermission
+                )
+
                 Spacer(modifier = Modifier.height(14.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(SurfaceLight.copy(alpha = 0.6f))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    Column {
-                        Text(
-                            text = stringResource(R.string.heads_up_setup_steps_title),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Accent,
-                            lineHeight = 16.sp
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.heads_up_setup_steps),
-                            fontSize = 11.sp,
-                            color = TextHint,
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(20.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(ButtonSuccess.copy(alpha = 0.15f))
-                        .clickable { onTestNotification() }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.test_notification),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ButtonSuccess
+
+                // === 建议权限 ===
+                Text(
+                    text = stringResource(R.string.permission_recommended_section),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextHint,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // 4. Battery optimization (recommended)
+                PermissionItem(
+                    label = stringResource(R.string.permission_battery_optimization),
+                    status = permissionState.batteryOptimizationExempt,
+                    actionLabel = stringResource(R.string.permission_open_settings),
+                    onAction = onOpenBatterySettings
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // 5. Auto-start (Chinese ROM only, recommended)
+                if (permissionState.needsAutoStart) {
+                    PermissionItem(
+                        label = stringResource(R.string.permission_auto_start),
+                        status = false,
+                        statusLabel = stringResource(R.string.permission_manual_required),
+                        actionLabel = stringResource(R.string.permission_open_settings),
+                        onAction = onOpenAutoStartSettings
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+
+                // ROM-specific tips
+                val romTips = RomUtils.getRomPermissionTips()
+                if (romTips.isNotEmpty()) {
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(SurfaceLight)
-                            .clickable { onDismiss() }
-                            .padding(vertical = 12.dp),
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Accent.copy(alpha = 0.12f))
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text(text = "💡", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = romTips,
+                                fontSize = 10.sp,
+                                color = TextSecondary,
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // Test notification (when notification granted)
+                if (permissionState.notificationGranted && permissionState.headsUpEnabled) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ButtonSuccess.copy(alpha = 0.15f))
+                            .clickable { onTestNotification() }
+                            .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = stringResource(R.string.later),
-                            fontSize = 14.sp,
+                            text = stringResource(R.string.test_notification),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ButtonSuccess
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // Bottom buttons — fixed height to prevent squishing
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Re-check button (always visible)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfaceLight)
+                            .clickable { onRecheck() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.permission_recheck),
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = TextPrimary
                         )
                     }
+
+                    // Done button - only enabled when required permissions granted
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(ButtonPrimary)
-                            .clickable { onOpenSettings() }
-                            .padding(vertical = 12.dp),
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (canClose) ButtonSuccess
+                                else ButtonSuccess.copy(alpha = 0.3f)
+                            )
+                            .clickable(enabled = canClose) { onDismiss() },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = stringResource(R.string.go_to_settings),
-                            fontSize = 14.sp,
+                            text = stringResource(R.string.permission_done),
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color.White
+                            color = if (canClose) Color.White else TextDisabled
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PermissionItem(
+    label: String,
+    status: Boolean,
+    statusLabel: String? = null,
+    actionLabel: String,
+    onAction: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(SurfaceLight.copy(alpha = 0.6f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Status icon
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(if (status) Success.copy(alpha = 0.2f) else Error.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(
+                    id = if (status) R.drawable.ic_check else R.drawable.ic_error
+                ),
+                contentDescription = null,
+                tint = if (status) Success else Error,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        // Label
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        // Status text
+        Text(
+            text = statusLabel ?: if (status) stringResource(R.string.permission_granted)
+                                  else stringResource(R.string.permission_not_granted),
+            fontSize = 11.sp,
+            color = if (status) Success else Warning,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        // Action button (only when not granted)
+        if (!status) {
+            Text(
+                text = actionLabel,
+                fontSize = 11.sp,
+                color = Accent,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable { onAction() }
+            )
         }
     }
 }
