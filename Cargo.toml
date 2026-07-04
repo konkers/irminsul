@@ -12,7 +12,7 @@ targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [dependencies]
 # Keep these in sync with dev-dependencies below
-anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "222bab5d8f3f7c5052360672a9d882e766e70062" }
+anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "df004591478efaedb995a425256b8ee535e36eee" }
 flate2 = "1.1.9"
 tokio = { version = "1.47.1", features = [
 	"rt",
@@ -69,7 +69,7 @@ windows = { version = "0.61.3", features = [
 
 [build-dependencies]
 # Keep these in sync with dependencies above
-anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "222bab5d8f3f7c5052360672a9d882e766e70062" }
+anime-game-data = { git = "https://github.com/konkers/anime-game-data", rev = "df004591478efaedb995a425256b8ee535e36eee" }
 flate2 = "1.1.9"
 tokio = { version = "1.47.1", features = [
 	"rt",

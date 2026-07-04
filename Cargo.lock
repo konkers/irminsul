@@ -178,7 +178,7 @@ dependencies = [
 [[package]]
 name = "anime-game-data"
 version = "0.1.0"
-source = "git+https://github.com/konkers/anime-game-data?rev=222bab5d8f3f7c5052360672a9d882e766e70062#222bab5d8f3f7c5052360672a9d882e766e70062"
+source = "git+https://github.com/konkers/anime-game-data?rev=df004591478efaedb995a425256b8ee535e36eee#df004591478efaedb995a425256b8ee535e36eee"
 dependencies = [
  "anyhow",
  "reqwest",
