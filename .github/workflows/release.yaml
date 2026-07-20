@@ -33,6 +33,9 @@ jobs:
           mv Cargo.toml.new Cargo.toml
           cargo generate-lockfile
       - run: cargo build --release
+      - name: Copy binary with platform suffix
+        run: |
+          cp target/release/irminsul.exe target/release/irminsul-windows-x64.exe
       - name: Push updated version
         run: |
           git config user.name "irminsul bot"
@@ -44,7 +47,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: irminsul
-          path: target/release/irminsul.exe
+          path: |
+            target/release/irminsul.exe
+            target/release/irminsul-windows-x64.exe
 
   create-release:
     runs-on: ubuntu-latest
@@ -67,4 +72,6 @@ jobs:
         with:
           tag: v${{inputs.nextVersion}}
           name: "v${{inputs.nextVersion}}"
-          artifacts: "irminsul.exe"
+          artifacts: |
+            irminsul-windows-x64.exe
+            irminsul.exe

@@ -45,7 +45,11 @@ pub fn check_for_new_version() -> Result<Option<Release>> {
 }
 
 async fn download_new_version_and_replace_current(release: Release) -> Result<()> {
-    let asset = release.asset_for("", None).unwrap();
+    // Try platform-specific asset first, fall back to legacy name.
+    let asset = release
+        .asset_for("windows-x64", None)
+        .or_else(|| release.asset_for("", None))
+        .context("no suitable release asset found")?;
     tracing::info!("asset: {asset:#?}");
 
     let tmp_dir = tempfile::Builder::new()
