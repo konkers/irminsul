@@ -1,54 +1,99 @@
+# Irminsul
+
+[![Rust CI](https://github.com/konkers/irminsul/actions/workflows/rust.yml/badge.svg)](https://github.com/konkers/irminsul/actions/workflows/rust.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 ![Screenshot](docs/src/images/main-window.webp)
 
-# Resources
+Irminsul is a desktop utility that extracts data from Genshin Impact — artifacts, weapons, materials, and characters — and exports it in the [GOOD](https://frzyc.github.io/genshin-optimizer/#/doc) format for use with [Genshin Optimizer](https://frzyc.github.io/genshin-optimizer/) and other GOOD-compatible tools.
 
-- [Docs](https://konkers.github.io/irminsul)
-- [Discord](https://discord.gg/aQqdZPHEpP)
+## Why Irminsul
 
-# Introduction
+Most [scanners](https://frzyc.github.io/genshin-optimizer/#/scanner) rely on optical character recognition (OCR) of the game's UI. Irminsul instead sniffs the network handshake between the game client and server, which makes it dramatically faster. The trade-off is that it needs to run with admin/root privileges (for packet capture) and must already be running when Genshin Impact starts, so it can observe the initial handshake.
 
-Irminsul is a utility to extract data from Genshin Impact and export it for use with [Genshin Optimizer](https://frzyc.github.io/genshin-optimizer/) and web sites, applications, and utilities that use the [GOOD](https://frzyc.github.io/genshin-optimizer/#/doc) data format.
+Current capabilities:
 
-Irminsul utilizes packet capture instead of the common optical character recognition (OCR) that other [scanners](https://frzyc.github.io/genshin-optimizer/#/scanner) use. This allows it to be much quicker in exchange for 1. needing to run with admin/root privaleges (for the packet capture) and 2. needing to be run when genshin starts to observe the handshake with the server.
-
-## Dependencies
-
-To use the `pcap` capture backend, make sure to install a Pcap library (Npcap/WinPcap on Windows, libpcap on Linux).
-
-## Command line options
-
-Irminsul accepts a handful of command line options for advanced use cases:
-
-- `--capture-backend <pktmon|pcap>`: chooses which capture backend to use. On Windows both `pktmon` (default) and `pcap` are available. On other platforms only `pcap` is available.
-- `--no-admin`: skips the automatic elevation prompt. This can be useful when you prefer to launch the application without requesting higher privileges up front.
-
-## Features
-
-In it's current state Irminsul supports:
-
-- Incredibly fast capture of all Genshin Optimizer supported data
-  - Artifacts including "unactivated" rolls and reporting of initial values for rolls
+- Incredibly fast capture of all Genshin Optimizer supported data:
+  - Artifacts, including "unactivated" rolls and initial roll values
   - Weapons
   - Materials
   - Characters
 - Simple, clean UI
 - Export settings to filter which data gets exported
-- Exports data either to the clipboard or saved to a file
+- Export to the clipboard or to a file
 
-Planned features include:
+Planned:
 
 - Achievement export
 - Wish history export
-- Real time data updates while game is running
+- Real-time data updates while the game is running
 
-## Thanks
+## Getting Started
 
-Irmunsil is built upon the work of many others.
+### Download
 
-- [PJK136](https://github.com/PJK136) whose work on a [fork of `stardb-exporter`](https://github.com/PJK136/stardb-exporter) provided the main inspiration for Irminsul's development.
-- [juliuskreutz](https://github.com/juliuskreutz) whose [`stardb-exporter`](https://github.com/juliuskreutz/stardb-exporter) provided the foundation for PJK136's work as well as providing some examples for how to wrangle [`egui`](https://github.com/emilk/egui).
-- [hashblen](https://github.com/hashblen) whose [`auto-artifactarioum`](https://github.com/hashblen/auto-artifactarium) is used to interpret the network packets from Genshin.
-- [IceDynamix](https://github.com/IceDynamix/) whose work on Honkai Star Rail network scanning is at the root of many of the Genshin and HSR network scanning utilities.
-- [emmachase](https://github.com/emmachase) who wrote the packet capture library [`pktmon`](https://github.com/emmachase/pktmon) which Irminsul uses to allow packet capture without having to install a npcap driver as well as their contributions to some of the above projects.
-- [Genshin Optimizer](https://frzyc.github.io/genshin-optimizer/) without which there would be no point in exporting data.
-- [Inventory Kamera](https://github.com/Andrewthe13th/Inventory_Kamera) which was my introduction into artifact and character scanning and whose discord provided a collaboration environment that spawned Irminsul.
+Grab the latest release for your platform from the [Releases page](https://github.com/konkers/irminsul/releases):
+
+- **Windows**: `irminsul.exe` (uses [`pktmon`](https://github.com/emmachase/pktmon), no extra drivers needed)
+- **Linux**: build from source (see below); requires `libpcap`
+
+### Dependencies
+
+If you're using the `pcap` capture backend, install a pcap library first:
+
+- **Windows**: [Npcap](https://npcap.com/#download) (WinPcap likely works but is untested)
+- **Linux**: `libpcap` from your distro's package manager
+
+### Building from source
+
+Irminsul is a Rust project (nightly toolchain, pinned in `rust-toolchain.toml`).
+
+```sh
+# Default build (Windows: pktmon backend only)
+cargo build --release
+
+# Include the cross-platform pcap backend
+cargo build --release --features pcap
+
+# Linux: statically link libpcap instead of relying on the system library
+cargo build --release --features pcap,static-libpcap
+```
+
+### Usage
+
+1. Launch Irminsul **before** starting Genshin Impact.
+   - Windows will prompt for admin elevation automatically (UAC).
+   - Linux/macOS require root; if not run as root, Irminsul shows a dialog with the exact `sudo <path>` command to use.
+2. Click the play button in the "Packet Capture" section to start capturing.
+3. Launch Genshin Impact and enter through the loading-screen "door" so Irminsul can observe the handshake.
+4. Watch for green checkmarks as artifacts, weapons, materials, and characters are captured.
+5. Export your data via the clipboard icon or the save-to-file icon. Use the settings icon to control which data categories and thresholds get exported.
+
+Command line options:
+
+- `--capture-backend <pktmon|pcap>` (`-b`): selects the capture backend. Both `pktmon` (default) and `pcap` are available on Windows; other platforms support `pcap` only.
+- `--no-admin`: skips the automatic elevation prompt.
+
+## Getting Help
+
+- [Documentation](https://konkers.github.io/irminsul)
+- [Discord](https://discord.gg/aQqdZPHEpP)
+- [Issue tracker](https://github.com/konkers/irminsul/issues)
+
+## Maintainers & Contributing
+
+Irminsul is created and maintained by [Erik Gilling (Konkers)](https://github.com/konkers). Issues and pull requests are welcome on [GitHub](https://github.com/konkers/irminsul).
+
+Distributed under the [MIT License](LICENSE).
+
+### Thanks
+
+Irminsul is built upon the work of many others:
+
+- [PJK136](https://github.com/PJK136), whose work on a [fork of `stardb-exporter`](https://github.com/PJK136/stardb-exporter) provided the main inspiration for Irminsul's development.
+- [juliuskreutz](https://github.com/juliuskreutz), whose [`stardb-exporter`](https://github.com/juliuskreutz/stardb-exporter) provided the foundation for PJK136's work as well as examples for wrangling [`egui`](https://github.com/emilk/egui).
+- [hashblen](https://github.com/hashblen), whose [`auto-artifactarium`](https://github.com/hashblen/auto-artifactarium) is used to interpret network packets from Genshin.
+- [IceDynamix](https://github.com/IceDynamix/), whose work on Honkai Star Rail network scanning is at the root of many Genshin and HSR network scanning utilities.
+- [emmachase](https://github.com/emmachase), who wrote the packet capture library [`pktmon`](https://github.com/emmachase/pktmon) that Irminsul uses to capture packets without installing an npcap driver, as well as contributions to some of the above projects.
+- [Genshin Optimizer](https://frzyc.github.io/genshin-optimizer/), without which there would be no point in exporting data.
+- [Inventory Kamera](https://github.com/Andrewthe13th/Inventory_Kamera), the original introduction to artifact and character scanning, whose Discord provided the collaboration environment that spawned Irminsul.
