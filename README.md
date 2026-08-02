@@ -12,7 +12,7 @@ Irminsul is a desktop utility that extracts data from Genshin Impact — artifac
 
 ## Why Irminsul
 
-Most [scanners](https://frzyc.github.io/genshin-optimizer/#/scanner) rely on optical character recognition (OCR) of the game's UI. Irminsul instead sniffs the network handshake between the game client and server, which makes it dramatically faster. The trade-off is that it needs to run with admin/root privileges (for packet capture) and must already be running when Genshin Impact starts, so it can observe the initial handshake.
+Most [scanners](https://frzyc.github.io/genshin-optimizer/#/scanner) rely on optical character recognition (OCR) of the game's UI. Irminsul instead sniffs the network handshake between the game client and server, which makes it dramatically faster.
 
 Current capabilities:
 
