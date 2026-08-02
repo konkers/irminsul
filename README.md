@@ -2,6 +2,9 @@
 
 [![Rust CI](https://github.com/konkers/irminsul/actions/workflows/rust.yml/badge.svg)](https://github.com/konkers/irminsul/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-konkers.github.io-blue)](https://konkers.github.io/irminsul)
+[![Discord](https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/aQqdZPHEpP)
+[![Issues](https://img.shields.io/github/issues/konkers/irminsul)](https://github.com/konkers/irminsul/issues)
 
 ![Screenshot](docs/src/images/main-window.webp)
 
@@ -73,12 +76,6 @@ Command line options:
 
 - `--capture-backend <pktmon|pcap>` (`-b`): selects the capture backend. Both `pktmon` (default) and `pcap` are available on Windows; other platforms support `pcap` only.
 - `--no-admin`: skips the automatic elevation prompt.
-
-## Getting Help
-
-- [Documentation](https://konkers.github.io/irminsul)
-- [Discord](https://discord.gg/aQqdZPHEpP)
-- [Issue tracker](https://github.com/konkers/irminsul/issues)
 
 ## Maintainers & Contributing
 
