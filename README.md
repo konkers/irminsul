@@ -62,11 +62,13 @@ cargo build --release --features pcap
 cargo build --release --features pcap,static-libpcap
 ```
 
+The binary is written to `target/release/irminsul` (Linux/macOS) or `target/release/irminsul.exe` (Windows).
+
 ### Usage
 
 1. Launch Irminsul **before** starting Genshin Impact.
-   - Windows will prompt for admin elevation automatically (UAC).
-   - Linux/macOS require root; if not run as root, Irminsul shows a dialog with the exact `sudo <path>` command to use.
+   - Windows: run `target\release\irminsul.exe`; it will prompt for admin elevation automatically (UAC).
+   - Linux/macOS: run `sudo ./target/release/irminsul` (root is required for packet capture); if launched without root, Irminsul shows a dialog with the exact `sudo <path>` command to use.
 2. Click the play button in the "Packet Capture" section to start capturing.
 3. Launch Genshin Impact and enter through the loading-screen "door" so Irminsul can observe the handshake.
 4. Watch for green checkmarks as artifacts, weapons, materials, and characters are captured.
