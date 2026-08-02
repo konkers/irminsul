@@ -52,10 +52,10 @@ If you're using the `pcap` capture backend, install a pcap library first:
 Irminsul is a Rust project (nightly toolchain, pinned in `rust-toolchain.toml`).
 
 ```sh
-# Default build (Windows: pktmon backend only)
+# Windows (pktmon backend)
 cargo build --release
 
-# Include the cross-platform pcap backend
+# Linux/macOS (pcap backend)
 cargo build --release --features pcap
 
 # Linux: statically link libpcap instead of relying on the system library
