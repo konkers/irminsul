@@ -23,7 +23,7 @@ jobs:
             artifact_name: ${{ github.event.repository.name }}-pcap-and-pktmon.exe
             suffix: ".exe"
             rust_features: "--features pcap"
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             artifact_name: ${{ github.event.repository.name }}-linux-x64
             suffix: ""
             rust_features: "--features pcap,static-libpcap"
@@ -38,37 +38,9 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install libpcap build dependencies (Linux)
+      - name: Setup libpcap (Linux)
         if: runner.os == 'Linux'
-        run: |
-          cat /etc/apt/sources.list.d/ubuntu.sources
-          sudo sed -Ei 's/^Types: deb/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
-          cat /etc/apt/sources.list.d/ubuntu.sources
-          sudo apt-get update
-          sudo apt-get build-dep -y libpcap0.8t64
-      - name: Cache libpcap tarball (Linux)
-        if: runner.os == 'Linux'
-        uses: actions/cache@v4
-        with:
-          path: /tmp/libpcap-1.10.5.tar.gz
-          key: libpcap-1.10.5-tarball
-      - name: Build and install libpcap without dbus or rdma (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          cd /tmp
-          # Download if not cached
-          if [ ! -f libpcap-1.10.5.tar.gz ]; then
-            wget https://www.tcpdump.org/release/libpcap-1.10.5.tar.gz
-          fi
-          # Verify SHA256 checksum
-          echo "37ced90a19a302a7f32e458224a00c365c117905c2cd35ac544b6880a81488f0  libpcap-1.10.5.tar.gz" | sha256sum -c
-          # Extract, build, and install
-          tar xzf libpcap-1.10.5.tar.gz
-          cd libpcap-1.10.5
-          ./configure --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu --disable-dbus --disable-rdma
-          make
-          sudo make install
-          sudo ldconfig
+        uses: ./.github/actions/setup-libpcap
       - name: Install Npcap SDK (Windows)
         if: runner.os == 'Windows'
         run: |
