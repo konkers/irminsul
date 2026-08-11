@@ -22,7 +22,7 @@ tokio = { version = "1.47.1", features = [
 ] }
 
 anyhow = "1.0.99"
-async-trait = "0.1.89"
+async-trait = "0.1.92"
 async-watcher = "0.3.0"
 auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "b0338e65d8bebb84149feaada5910f7d2251056f" }
 base64 = "0.22.1"
