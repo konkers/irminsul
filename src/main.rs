@@ -37,7 +37,11 @@ pub enum State {
     CheckingForUpdate,
     WaitingForUpdateConfirmation(String),
     Updating,
-    Updated,
+    /// `needs_caps` is set when the update dropped the packet capture
+    /// permissions the user had granted, and they need to be re-granted.
+    Updated {
+        needs_caps: bool,
+    },
     CheckingForData,
     WaitingForDownloadConfirmation(ConfirmationType),
     Downloading,
