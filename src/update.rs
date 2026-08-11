@@ -59,7 +59,17 @@ fn asset_for_target(release: &Release) -> Result<ReleaseAsset> {
         .with_context(|| format!("release {} has no {target} asset", release.version))
 }
 
-async fn download_new_version_and_replace_current(release: Release) -> Result<()> {
+/// Replace the running executable, returning whether packet capture
+/// permissions need to be re-granted afterwards.
+async fn download_new_version_and_replace_current(release: Release) -> Result<bool> {
+    // File capabilities are an attribute of the inode, so replacing the
+    // executable drops them.  Running as root loses nothing, since that
+    // privilege comes from the invocation rather than from the file.
+    #[cfg(unix)]
+    let caps_lost = !crate::admin::is_root() && crate::admin::has_cap_net_raw();
+    #[cfg(not(unix))]
+    let caps_lost = false;
+
     let asset = asset_for_target(&release)?;
     tracing::info!("asset: {asset:#?}");
 
@@ -122,7 +132,7 @@ async fn download_new_version_and_replace_current(release: Release) -> Result<()
     tracing::info!("replacing current exe");
     self_update::self_replace::self_replace(tmp_exe_path)?;
 
-    Ok(())
+    Ok(caps_lost)
 }
 
 pub async fn check_for_app_update(
@@ -154,9 +164,9 @@ pub async fn check_for_app_update(
     app_state.state = State::Updating;
     state_tx.send(app_state.clone()).unwrap();
 
-    download_new_version_and_replace_current(release).await?;
+    let needs_caps = download_new_version_and_replace_current(release).await?;
 
-    app_state.state = State::Updated;
+    app_state.state = State::Updated { needs_caps };
     state_tx.send(app_state.clone()).unwrap();
 
     // Loop while waiting for the app to restart or possibly a cancellation.

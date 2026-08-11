@@ -76,17 +76,37 @@ pub fn ensure_admin() {
     std::process::exit(0);
 }
 
+/// Path of the running executable, for use in instructions shown to the user.
+pub fn current_exe_path() -> String {
+    std::env::current_exe()
+        .ok()
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or("./irminsul".to_owned())
+}
+
+/// The command that grants Irminsul permission to capture packets.
+///
+/// Shared by the missing permissions dialog and the post update prompt so the
+/// two can't drift apart.
+pub fn setcap_command(exe_path: &str) -> String {
+    format!("sudo setcap cap_net_raw=ep '{exe_path}'")
+}
+
+#[cfg(unix)]
+pub fn is_root() -> bool {
+    nix::unistd::geteuid().is_root()
+}
+
+#[cfg(unix)]
+pub fn has_cap_net_raw() -> bool {
+    caps::has_cap(None, caps::CapSet::Effective, caps::Capability::CAP_NET_RAW)
+        .is_ok_and(|has_net_raw| has_net_raw)
+}
+
 #[cfg(unix)]
 pub fn ensure_admin() {
     // We are happy if we are running as root or have CAP_NET_RAW
-    let is_root = unsafe { libc::geteuid() } == 0;
-    if is_root {
-        return;
-    }
-
-    let has_net_raw_result =
-        caps::has_cap(None, caps::CapSet::Effective, caps::Capability::CAP_NET_RAW);
-    if has_net_raw_result.is_ok_and(|has_net_raw| has_net_raw) {
+    if is_root() || has_cap_net_raw() {
         return;
     }
 
@@ -102,11 +122,7 @@ fn show_packet_capture_permissions_missing_dialog() {
         ..Default::default()
     };
 
-    // Try to get the current executable path
-    let exe_path = std::env::current_exe()
-        .ok()
-        .map(|mut path| path.as_mut_os_string().to_string_lossy().to_string())
-        .unwrap_or("./irminsul".to_owned());
+    let exe_path = current_exe_path();
 
     let _ = eframe::run_simple_native(
         "Irminsul requires packet capture permissions",
@@ -118,8 +134,9 @@ fn show_packet_capture_permissions_missing_dialog() {
                     ui.add_space(5.0);
                     ui.label("1. Grant CAP_NET_RAW to Irminsul (after every update):");
                     ui.label(format!(
-                        "sudo setcap cap_net_raw=ep '{}' && '{}'",
-                        exe_path, exe_path
+                        "{} && '{}'",
+                        setcap_command(&exe_path),
+                        exe_path
                     ));
                     ui.add_space(5.0);
                     ui.label("2. Run Irminsul as root (every time):");
