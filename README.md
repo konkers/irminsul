@@ -13,7 +13,7 @@ Irminsul utilizes packet capture instead of the common optical character recogni
 
 ## Dependencies
 
-To use the `pcap` capture backend, make sure to install a Pcap library (Npcap/WinPcap on Windows, libpcap on Linux).
+To use the `pcap` capture backend, make sure to install a Pcap library (Npcap/WinPcap on Windows, libpcap on Linux). The released Linux binary has libpcap linked into it, so this only applies there when building Irminsul yourself.
 
 ## Command line options
 
