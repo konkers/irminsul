@@ -4,7 +4,7 @@ use std::thread;
 use anyhow::{Context, Result, anyhow};
 use futures_util::StreamExt;
 use reqwest::header;
-use self_update::update::Release;
+use self_update::update::{Release, ReleaseAsset};
 use serde::Deserialize;
 use tokio::sync::{mpsc, watch};
 
@@ -44,17 +44,35 @@ pub fn check_for_new_version() -> Result<Option<Release>> {
     Ok(Some(release))
 }
 
+/// Find the asset matching the platform we're running on.
+fn asset_for_target(release: &Release) -> Result<ReleaseAsset> {
+    let target = if cfg!(windows) {
+        "windows-x64"
+    } else if cfg!(target_os = "linux") {
+        "linux-x64"
+    } else {
+        return Err(anyhow!("no release assets are published for this platform"));
+    };
+
+    release
+        .asset_for(target, None)
+        .with_context(|| format!("release {} has no {target} asset", release.version))
+}
+
 async fn download_new_version_and_replace_current(release: Release) -> Result<()> {
-    // Try platform-specific asset first, fall back to legacy name.
-    let asset = release
-        .asset_for("windows-x64", None)
-        .or_else(|| release.asset_for("", None))
-        .context("no suitable release asset found")?;
+    let asset = asset_for_target(&release)?;
     tracing::info!("asset: {asset:#?}");
 
+    // Stage the download next to the executable being replaced.  self_replace
+    // finishes with a rename, which cannot cross filesystems, and the current
+    // directory is neither guaranteed to be writable nor on the same mount.
+    let current_exe = ::std::env::current_exe().context("could not find the current exe")?;
+    let exe_dir = current_exe
+        .parent()
+        .context("current exe has no parent directory")?;
     let tmp_dir = tempfile::Builder::new()
         .prefix("self_update")
-        .tempdir_in(::std::env::current_dir()?)?;
+        .tempdir_in(exe_dir)?;
     let tmp_exe_path = tmp_dir.path().join(&asset.name);
     let mut tmp_exe = ::std::fs::File::create(&tmp_exe_path)?;
 
@@ -92,6 +110,14 @@ async fn download_new_version_and_replace_current(release: Release) -> Result<()
         tmp_exe.write_all(&chunk)?;
     }
     drop(tmp_exe);
+
+    // Release assets are written without the executable bit.
+    #[cfg(unix)]
+    {
+        use ::std::os::unix::fs::PermissionsExt;
+        ::std::fs::set_permissions(&tmp_exe_path, ::std::fs::Permissions::from_mode(0o755))
+            .context("could not make the downloaded binary executable")?;
+    }
 
     tracing::info!("replacing current exe");
     self_update::self_replace::self_replace(tmp_exe_path)?;
@@ -137,4 +163,58 @@ pub async fn check_for_app_update(
     while !matches!(ui_message_rx.recv().await, Some(Message::UpdateCanceled)) {}
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn release(assets: &[&str]) -> Release {
+        Release {
+            version: "0.1.20".to_owned(),
+            assets: assets
+                .iter()
+                .map(|name| ReleaseAsset {
+                    download_url: format!("https://example.invalid/{name}"),
+                    name: (*name).to_owned(),
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn picks_the_asset_for_this_platform() {
+        let release = release(&[
+            "irminsul.exe",
+            "irminsul-windows-x64.exe",
+            "irminsul-linux-x64",
+        ]);
+        let asset = asset_for_target(&release).expect("an asset for this platform");
+
+        #[cfg(windows)]
+        assert_eq!(asset.name, "irminsul-windows-x64.exe");
+        #[cfg(target_os = "linux")]
+        assert_eq!(asset.name, "irminsul-linux-x64");
+    }
+
+    #[test]
+    fn never_picks_another_platforms_asset() {
+        #[cfg(windows)]
+        let release = release(&["irminsul-linux-x64"]);
+        #[cfg(target_os = "linux")]
+        let release = release(&["irminsul-windows-x64.exe"]);
+
+        asset_for_target(&release)
+            .expect_err("a release with only another platform's asset must not resolve");
+    }
+
+    /// The bare `irminsul.exe` predates per platform assets and is on its way
+    /// out, so it is not a candidate on any platform.
+    #[test]
+    fn a_legacy_only_release_does_not_resolve() {
+        let release = release(&["irminsul.exe"]);
+
+        asset_for_target(&release).expect_err("irminsul.exe is not a platform specific asset");
+    }
 }
