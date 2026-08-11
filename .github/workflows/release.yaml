@@ -8,12 +8,60 @@ on:
         default: "0.0.0"
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    permissions:
-      contents: write
+  # Prepare the release commit by bumping the crate version.  This commit
+  # is then saved as a git bundle artifact so that subsequent jobs can be
+  # built on the correct revision.  The commit is not pushed to the repo
+  # until the release builds have succeeded.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.bump.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Disable shallow cloning as creating git bundles from a shollow clone
+          # is a relatively new feature.
+          fetch-depth: 0
+      - run: cargo install toml-cli
+
+      - name: Update Cargo.toml with new version
+        # toml-cli does not support in place editing so the output is directed to
+        # a temporary file to avoid updating the file as it's being read.
+        run: |
+          toml set Cargo.toml package.version ${{inputs.nextVersion}} > Cargo.toml.new
+          rm Cargo.toml
+          mv Cargo.toml.new Cargo.toml
+          cargo generate-lockfile
+      - name: Commit version bump locally
+        id: bump
+        run: |
+          git config user.name "irminsul bot"
+          git config user.email "irminsul.bot@users.noreply.github.com"
+          git add Cargo.toml
+          git add Cargo.lock
+          git commit -m "[skip ci] bump version to ${{inputs.nextVersion}}"
+
+          # Record the version bump rev for use in building and tagging the
+          # release.
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Bundle the version bump commit
+        # A thin bundle holding just the bump commit, with the dispatch commit
+        # as a prerequisite.  Every other job already has that from its own
+        # checkout.
+        run: git bundle create bump.bundle ${{ github.sha }}..HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bump-bundle
+          path: bump.bundle
+
+  build-windows:
+    runs-on: windows-latest
+    needs: [prepare]
+    steps:
+      - uses: actions/checkout@v4
+      # Keep the cache keyed on the pre-bump Cargo.lock.  generate-lockfile
+      # writes the new version into it, so keying on the bumped file would
+      # miss the cache on every release.
       - name: Cache
         uses: actions/cache@v4
         with:
@@ -22,28 +70,17 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo install toml-cli
-
-      - name: Update Cargo.toml with new version
-        # piping the output of toml-cli directly into the file will cause the file to be deleted before being read
-        # by toml-cli. excuse this workaround.
+      - uses: actions/download-artifact@v4
+        with:
+          name: bump-bundle
+      - name: Check out the version bump commit
         run: |
-          toml set Cargo.toml package.version ${{inputs.nextVersion}} > Cargo.toml.new
-          rm Cargo.toml
-          mv Cargo.toml.new Cargo.toml
-          cargo generate-lockfile
+          git fetch bump.bundle HEAD:refs/heads/release-bump
+          git checkout ${{ needs.prepare.outputs.sha }}
       - run: cargo build --release
       - name: Copy binary with platform suffix
         run: |
           cp target/release/irminsul.exe target/release/irminsul-windows-x64.exe
-      - name: Push updated version
-        run: |
-          git config user.name "irminsul bot"
-          git config user.email "irminsul.bot@users.noreply.github.com"
-          git add Cargo.toml
-          git add Cargo.lock
-          git commit -m "[skip ci] bump version to ${{inputs.nextVersion}}"
-          git push origin main
       - uses: actions/upload-artifact@v4
         with:
           name: irminsul
@@ -51,27 +88,36 @@ jobs:
             target/release/irminsul.exe
             target/release/irminsul-windows-x64.exe
 
+  # Create the release:
+  # * Push release commit to both main and the release tag
+  # * Create a new github release on the release tag
   create-release:
     runs-on: ubuntu-latest
-    needs: [build-windows]
+    needs: [prepare, build-windows]
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bump-bundle
       - name: Download release artifact
         uses: actions/download-artifact@v4
         with:
           name: irminsul
           path: ./
-      - name: Create and push version tag
+      - name: Push the version bump and tag the release
         run: |
-          git tag v${{inputs.nextVersion}}
-          git push origin --tags
+          git fetch bump.bundle HEAD:refs/heads/release-bump
+          git push origin ${{ needs.prepare.outputs.sha }}:main
+          git tag v${{inputs.nextVersion}} ${{ needs.prepare.outputs.sha }}
+          git push origin v${{inputs.nextVersion}}
       - name: Create release
         uses: ncipollo/release-action@v1
         with:
           tag: v${{inputs.nextVersion}}
           name: "v${{inputs.nextVersion}}"
+          commit: ${{ needs.prepare.outputs.sha }}
           artifacts: |
             irminsul-windows-x64.exe
             irminsul.exe
