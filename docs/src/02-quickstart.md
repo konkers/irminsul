@@ -2,20 +2,45 @@
 
 ## Download Irminsul
 
-The latest Irminsul release can always be found on the [Irminsul GitHub Released Page](https://github.com/konkers/irminsul/releases). Make sure to grab `irminsul.exe` and not either of the "Source code" archives.
+The latest Irminsul release can always be found on the [Irminsul GitHub Released Page](https://github.com/konkers/irminsul/releases). Grab the file for your platform, not either of the "Source code" archives:
+
+- Windows: `irminsul-windows-x64.exe`
+- Linux: `irminsul-linux-x64`
+
+Downloads don't keep their executable bit, so on Linux mark the file executable before running it:
+
+```
+chmod +x irminsul-linux-x64
+```
 
 ## Install Pcap library (optional)
 
 If you plan on using the `pcap` capture backend:
 
 - On Windows: Install Npcap (https://npcap.com/#download). The older WinPcap should work too, but we didn't test it.
-- On Linux: Install libpcap (refer to your distro's package manager)
+- On Linux: Nothing to install. The released binary has libpcap linked into it. You only need libpcap from your distro's package manager if you build Irminsul yourself.
 
-## Launch Irminsul and accept admin/root privaleges
+## Launch Irminsul and grant it packet capture privileges
 
 Irminsul needs to be running and capturing packets before you enter the door into the main game. The simplest way to accomplish this is to launch Irminsul before launching Genshin
 
 Irminsul needs admin/root privaleges to observe Genshin's network traffic and won't work without it.
+
+On Windows, accept the admin prompt that appears when Irminsul starts.
+
+On Linux, you can either grant Irminsul permission to capture packets:
+
+```
+sudo setcap cap_net_raw=ep ./irminsul-linux-x64
+```
+
+or run it as root every time:
+
+```
+sudo ./irminsul-linux-x64
+```
+
+`setcap` grants the permission to that particular copy of the file, so it has to be re-run after every update. Irminsul tells you when this is needed and shows you the command to use.
 
 ## Start packet capture
 
