@@ -17,7 +17,7 @@ jobs:
     outputs:
       sha: ${{ steps.bump.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # Disable shallow cloning as creating git bundles from a shollow clone
           # is a relatively new feature.
@@ -49,7 +49,7 @@ jobs:
         # as a prerequisite.  Every other job already has that from its own
         # checkout.
         run: git bundle create bump.bundle ${{ github.sha }}..HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: bump-bundle
           path: bump.bundle
@@ -58,19 +58,19 @@ jobs:
     runs-on: windows-latest
     needs: [prepare]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # Keep the cache keyed on the pre-bump Cargo.lock.  generate-lockfile
       # writes the new version into it, so keying on the bumped file would
       # miss the cache on every release.
       - name: Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: bump-bundle
       - name: Check out the version bump commit
@@ -81,7 +81,7 @@ jobs:
       - name: Copy binary with platform suffix
         run: |
           cp target/release/irminsul.exe target/release/irminsul-windows-x64.exe
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: irminsul
           path: |
@@ -97,12 +97,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
         with:
           name: bump-bundle
       - name: Download release artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: irminsul
           path: ./

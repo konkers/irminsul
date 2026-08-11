@@ -29,9 +29,9 @@ jobs:
             rust_features: "--features pcap,static-libpcap"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -58,13 +58,13 @@ jobs:
           LIB: ${{ github.workspace }}/Lib/x64/
       - if: ${{matrix.artifact_name}}
         name: Upload release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact_name }}
           path: target/release/irminsul${{ matrix.suffix }}
       - if: ${{matrix.alternate_artifact}}
         name: Upload release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.alternate_artifact }}
           path: target/release/irminsul${{ matrix.suffix }}
