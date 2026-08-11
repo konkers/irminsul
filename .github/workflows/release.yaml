@@ -83,17 +83,52 @@ jobs:
           cp target/release/irminsul.exe target/release/irminsul-windows-x64.exe
       - uses: actions/upload-artifact@v6
         with:
-          name: irminsul
+          name: irminsul-windows
           path: |
             target/release/irminsul.exe
             target/release/irminsul-windows-x64.exe
+
+  build-linux:
+    # Pinned to 22.04 rather than ubuntu-latest to keep the glibc requirement
+    # of the released binary as low as practical.
+    runs-on: ubuntu-22.04
+    needs: [prepare]
+    steps:
+      - uses: actions/checkout@v5
+      # Keep the cache keyed on the pre-bump Cargo.lock.  generate-lockfile
+      # writes the new version into it, so keying on the bumped file would
+      # miss the cache on every release.
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: ./.github/actions/setup-libpcap
+      - uses: actions/download-artifact@v7
+        with:
+          name: bump-bundle
+      - name: Check out the version bump commit
+        run: |
+          git fetch bump.bundle HEAD:refs/heads/release-bump
+          git checkout ${{ needs.prepare.outputs.sha }}
+      - run: cargo build --release --features pcap,static-libpcap
+      - name: Copy binary with platform suffix
+        run: |
+          cp target/release/irminsul target/release/irminsul-linux-x64
+      - uses: actions/upload-artifact@v6
+        with:
+          name: irminsul-linux
+          path: target/release/irminsul-linux-x64
 
   # Create the release:
   # * Push release commit to both main and the release tag
   # * Create a new github release on the release tag
   create-release:
     runs-on: ubuntu-latest
-    needs: [prepare, build-windows]
+    needs: [prepare, build-windows, build-linux]
     permissions:
       contents: write
     steps:
@@ -101,10 +136,11 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: bump-bundle
-      - name: Download release artifact
+      - name: Download release artifacts
         uses: actions/download-artifact@v7
         with:
-          name: irminsul
+          pattern: irminsul-*
+          merge-multiple: true
           path: ./
       - name: Push the version bump and tag the release
         run: |
@@ -121,3 +157,4 @@ jobs:
           artifacts: |
             irminsul-windows-x64.exe
             irminsul.exe
+            irminsul-linux-x64
