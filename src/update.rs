@@ -50,6 +50,8 @@ fn asset_for_target(release: &Release) -> Result<ReleaseAsset> {
         "windows-x64"
     } else if cfg!(target_os = "linux") {
         "linux-x64"
+    } else if cfg!(target_os = "macos") {
+        "macos-arm64"
     } else {
         return Err(anyhow!("no release assets are published for this platform"));
     };
@@ -61,6 +63,7 @@ fn asset_for_target(release: &Release) -> Result<ReleaseAsset> {
 
 const PE_MAGIC: &[u8] = b"MZ";
 const ELF_MAGIC: &[u8] = b"\x7fELF";
+const MACHO_MAGIC: &[u8] = b"\xcf\xfa\xed\xfe";
 
 /// Reject a download that is not an executable for this platform before it
 /// overwrites the running one.  Installing the wrong platform's binary leaves
@@ -72,6 +75,8 @@ fn check_is_native_executable(path: &::std::path::Path) -> Result<()> {
         PE_MAGIC
     } else if cfg!(target_os = "linux") {
         ELF_MAGIC
+    } else if cfg!(target_os = "macos") {
+        MACHO_MAGIC
     } else {
         return Err(anyhow!("no release assets are published for this platform"));
     };
@@ -228,6 +233,7 @@ mod tests {
     /// in sync.
     const PUBLISHED_ASSETS: &[&str] = &[
         "irminsul-legacy-x64.exe",
+        "irminsul-macos-arm64",
         "irminsul-windows-x64.exe",
         "irminsul.exe",
         "irminsul-linux-x64",
@@ -242,6 +248,8 @@ mod tests {
         assert_eq!(asset.name, "irminsul-windows-x64.exe");
         #[cfg(target_os = "linux")]
         assert_eq!(asset.name, "irminsul-linux-x64");
+        #[cfg(target_os = "macos")]
+        assert_eq!(asset.name, "irminsul-macos-arm64");
     }
 
     #[test]
@@ -249,6 +257,8 @@ mod tests {
         #[cfg(windows)]
         let release = release(&["irminsul-linux-x64"]);
         #[cfg(target_os = "linux")]
+        let release = release(&["irminsul-windows-x64.exe"]);
+        #[cfg(target_os = "macos")]
         let release = release(&["irminsul-windows-x64.exe"]);
 
         asset_for_target(&release)
@@ -293,7 +303,12 @@ mod tests {
     fn a_foreign_binary_is_rejected() {
         let dir = tempfile::tempdir().unwrap();
 
-        let native_magic = if cfg!(windows) { PE_MAGIC } else { ELF_MAGIC };
+        #[cfg(windows)]
+        let native_magic = PE_MAGIC;
+        #[cfg(target_os = "linux")]
+        let native_magic = ELF_MAGIC;
+        #[cfg(target_os = "macos")]
+        let native_magic = MACHO_MAGIC;
 
         let native = dir.path().join("native");
         ::std::fs::write(&native, native_magic).unwrap();
