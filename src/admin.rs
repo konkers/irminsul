@@ -99,14 +99,27 @@ pub fn is_root() -> bool {
 
 #[cfg(unix)]
 pub fn has_cap_net_raw() -> bool {
-    caps::has_cap(None, caps::CapSet::Effective, caps::Capability::CAP_NET_RAW)
-        .is_ok_and(|has_net_raw| has_net_raw)
+    #[cfg(target_os = "linux")]
+    {
+        caps::has_cap(None, caps::CapSet::Effective, caps::Capability::CAP_NET_RAW)
+            .is_ok_and(|has_net_raw| has_net_raw)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
 }
 
 #[cfg(unix)]
 pub fn ensure_admin() {
     // We are happy if we are running as root or have CAP_NET_RAW
     if is_root() || has_cap_net_raw() {
+        return;
+    }
+
+    // On macOS, /dev/bpf access is sufficient
+    #[cfg(target_os = "macos")]
+    if std::fs::File::open("/dev/bpf0").is_ok() {
         return;
     }
 
@@ -138,6 +151,12 @@ fn show_packet_capture_permissions_missing_dialog() {
                         setcap_command(&exe_path),
                         exe_path
                     ));
+
+                    #[cfg(target_os = "macos")]
+                    {
+                        ui.label("1. Grant read permissions on /dev/bpf* (after every reboot):");
+                        ui.label("sudo chmod 644 /dev/bpf*");
+                    }
                     ui.add_space(5.0);
                     ui.label("2. Run Irminsul as root (every time):");
                     ui.label(format!("sudo '{}'", exe_path));
