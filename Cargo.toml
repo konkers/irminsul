@@ -24,7 +24,7 @@ tokio = { version = "1.47.1", features = [
 anyhow = "1.0.99"
 async-trait = "0.1.92"
 async-watcher = "0.3.0"
-auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "b0338e65d8bebb84149feaada5910f7d2251056f" }
+auto-artifactarium = { git = "https://github.com/konkers/auto-artifactarium", rev = "4ba25fac64b88970143af6bc2a2ef51338e620d0" }
 base64 = "0.22.1"
 chrono = "0.4.42"
 clap = { version = "4.5.47", features = ["derive"] }
