@@ -79,14 +79,20 @@ jobs:
           git checkout ${{ needs.prepare.outputs.sha }}
       - run: cargo build --release
       - name: Copy binary with platform suffix
+        # irminsul-legacy-x64.exe exists purely to be the first asset in the
+        # release.  Updaters up to 0.1.19 match assets against an empty target
+        # string, which matches everything, so they install whichever asset
+        # comes first.
         run: |
           cp target/release/irminsul.exe target/release/irminsul-windows-x64.exe
+          cp target/release/irminsul.exe target/release/irminsul-legacy-x64.exe
       - uses: actions/upload-artifact@v6
         with:
           name: irminsul-windows
           path: |
             target/release/irminsul.exe
             target/release/irminsul-windows-x64.exe
+            target/release/irminsul-legacy-x64.exe
 
   build-linux:
     # Pinned to 22.04 rather than ubuntu-latest to keep the glibc requirement
@@ -155,6 +161,7 @@ jobs:
           name: "v${{inputs.nextVersion}}"
           commit: ${{ needs.prepare.outputs.sha }}
           artifacts: |
+            irminsul-legacy-x64.exe
             irminsul-windows-x64.exe
             irminsul.exe
             irminsul-linux-x64
