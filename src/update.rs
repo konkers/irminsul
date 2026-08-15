@@ -59,6 +59,35 @@ fn asset_for_target(release: &Release) -> Result<ReleaseAsset> {
         .with_context(|| format!("release {} has no {target} asset", release.version))
 }
 
+const PE_MAGIC: &[u8] = b"MZ";
+const ELF_MAGIC: &[u8] = b"\x7fELF";
+
+/// Reject a download that is not an executable for this platform before it
+/// overwrites the running one.  Installing the wrong platform's binary leaves
+/// an app that cannot run, and so cannot update itself back out of it.
+fn check_is_native_executable(path: &::std::path::Path) -> Result<()> {
+    use ::std::io::Read;
+
+    let magic = if cfg!(windows) {
+        PE_MAGIC
+    } else if cfg!(target_os = "linux") {
+        ELF_MAGIC
+    } else {
+        return Err(anyhow!("no release assets are published for this platform"));
+    };
+
+    let mut header = [0u8; 4];
+    let read = ::std::fs::File::open(path)?.read(&mut header)?;
+
+    if !header[..read].starts_with(magic) {
+        return Err(anyhow!(
+            "the downloaded update is not an executable for this platform"
+        ));
+    }
+
+    Ok(())
+}
+
 /// Replace the running executable, returning whether packet capture
 /// permissions need to be re-granted afterwards.
 async fn download_new_version_and_replace_current(release: Release) -> Result<bool> {
@@ -120,6 +149,8 @@ async fn download_new_version_and_replace_current(release: Release) -> Result<bo
         tmp_exe.write_all(&chunk)?;
     }
     drop(tmp_exe);
+
+    check_is_native_executable(&tmp_exe_path)?;
 
     // Release assets are written without the executable bit.
     #[cfg(unix)]
@@ -193,13 +224,18 @@ mod tests {
         }
     }
 
+    /// Every asset published by .github/workflows/release.yaml.  Keep the two
+    /// in sync.
+    const PUBLISHED_ASSETS: &[&str] = &[
+        "irminsul-legacy-x64.exe",
+        "irminsul-windows-x64.exe",
+        "irminsul.exe",
+        "irminsul-linux-x64",
+    ];
+
     #[test]
     fn picks_the_asset_for_this_platform() {
-        let release = release(&[
-            "irminsul.exe",
-            "irminsul-windows-x64.exe",
-            "irminsul-linux-x64",
-        ]);
+        let release = release(PUBLISHED_ASSETS);
         let asset = asset_for_target(&release).expect("an asset for this platform");
 
         #[cfg(windows)]
@@ -226,5 +262,49 @@ mod tests {
         let release = release(&["irminsul.exe"]);
 
         asset_for_target(&release).expect_err("irminsul.exe is not a platform specific asset");
+    }
+
+    /// Updaters up to 0.1.19 install whichever asset GitHub lists first, and
+    /// GitHub lists them by name, so the first name has to be a Windows binary
+    /// or those clients end up with an ELF named irminsul.exe.
+    #[test]
+    fn the_first_asset_by_name_is_a_windows_binary() {
+        let mut by_name = PUBLISHED_ASSETS.to_vec();
+        by_name.sort_unstable();
+
+        assert!(
+            by_name[0].ends_with(".exe"),
+            "{} sorts first and a legacy updater would install it",
+            by_name[0]
+        );
+    }
+
+    /// The asset that exists only to be first must not divert current clients
+    /// from the properly named one.
+    #[test]
+    fn current_clients_ignore_the_legacy_first_asset() {
+        let release = release(PUBLISHED_ASSETS);
+        let asset = asset_for_target(&release).expect("an asset for this platform");
+
+        assert_ne!(asset.name, "irminsul-legacy-x64.exe");
+    }
+
+    #[test]
+    fn a_foreign_binary_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let native_magic = if cfg!(windows) { PE_MAGIC } else { ELF_MAGIC };
+
+        let native = dir.path().join("native");
+        ::std::fs::write(&native, native_magic).unwrap();
+        check_is_native_executable(&native).expect("this platform's magic must be accepted");
+
+        let foreign = dir.path().join("foreign");
+        ::std::fs::write(&foreign, b"\x00not an executable").unwrap();
+        check_is_native_executable(&foreign).expect_err("a foreign binary must be rejected");
+
+        let empty = dir.path().join("empty");
+        ::std::fs::write(&empty, b"").unwrap();
+        check_is_native_executable(&empty).expect_err("a truncated download must be rejected");
     }
 }
