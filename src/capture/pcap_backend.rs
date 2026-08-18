@@ -138,6 +138,11 @@ impl PcapBackend {
                         break;
                     }
                 }
+                Err(pcap::Error::TimeoutExpired) => {
+                    // No packets arrived within the read timeout window (common on Windows/Npcap
+                    // for idle devices); this is expected and not fatal, so keep polling.
+                    continue;
+                }
                 Err(err) => {
                     tracing::info!(
                         "Packet loop for device {} ending (has_captured: {}): capture error: {}",
