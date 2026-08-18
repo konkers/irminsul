@@ -66,6 +66,9 @@ pub struct Good {
     pub materials: HashMap<String, u32>,
 }
 
+/// GOOD key for the Traveler before their element is appended.
+pub const TRAVELER_KEY: &str = "Traveler";
+
 pub fn to_good_key(value: &str) -> String {
     let mut result = String::new();
     let mut capitalize_next = true;
