@@ -54,7 +54,7 @@ pub enum BackendType {
 }
 
 #[cfg(windows)]
-pub const DEFAULT_CAPTURE_BACKEND_TYPE: BackendType = BackendType::Pktmon;
+pub const DEFAULT_CAPTURE_BACKEND_TYPE: BackendType = BackendType::Pcap;
 #[cfg(not(windows))]
 pub const DEFAULT_CAPTURE_BACKEND_TYPE: BackendType = BackendType::Pcap;
 
