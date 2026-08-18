@@ -89,7 +89,7 @@ tokio = { version = "1.47.1", features = [
 winresource = "0.1.23"
 
 [features]
-default = []
+default = ["pcap"]
 pcap = ["dep:pcap"]
 static-libpcap = ["pcap"]
 
