@@ -15,7 +15,7 @@ use flate2::read::GzDecoder;
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
-use crate::capture::{BackendType, create_capture};
+use crate::capture::{BackendType, CaptureError, create_capture};
 use crate::player_data::PlayerData;
 use crate::{APP_ID, AppState, DataUpdated, Message, State};
 
@@ -194,18 +194,41 @@ async fn capture_task(
     packet_tx: mpsc::UnboundedSender<Vec<u8>>,
     backend: BackendType,
 ) -> Result<()> {
-    let mut capture = create_capture(backend)
-        .map_err(|e| anyhow!("Error creating packet capture using {:?}: {e}", backend))?;
+    let mut capture = match create_capture(backend) {
+        Ok(capture) => capture,
+        Err(e) => {
+            tracing::error!("Error creating packet capture using {backend:?}: {e}");
+            return Err(anyhow!(
+                "Error creating packet capture using {backend:?}: {e}"
+            ));
+        }
+    };
     tracing::info!("starting capture");
+    const MAX_CONSECUTIVE_ERRORS: u32 = 10;
+    let mut consecutive_errors: u32 = 0;
     loop {
         let packet = tokio::select!(
             packet = capture.next_packet() => packet,
             _ = cancel_token.cancelled() => break,
         );
         let packet = match packet {
-            Ok(packet) => packet,
+            Ok(packet) => {
+                consecutive_errors = 0;
+                packet
+            }
+            Err(CaptureError::CaptureClosed) => {
+                tracing::error!("Capture channel closed, stopping capture task");
+                break;
+            }
             Err(e) => {
+                consecutive_errors += 1;
                 tracing::error!("Error receiving packet: {e}");
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                    tracing::error!(
+                        "Too many consecutive errors ({consecutive_errors}), stopping capture task"
+                    );
+                    break;
+                }
                 continue;
             }
         };
