@@ -134,6 +134,7 @@ impl PlayerData {
                 let mut auto = 1;
                 let mut skill = 1;
                 let mut burst = 1;
+                let mut element = None;
 
                 for (id, level) in &character.skill_level_map {
                     let Some(ty) = self.game_data.get_skill_type(*id).ok() else {
@@ -142,7 +143,10 @@ impl PlayerData {
                     match ty {
                         SkillType::Auto => auto = *level,
                         SkillType::Skill => skill = *level,
-                        SkillType::Burst => burst = *level,
+                        SkillType::Burst => {
+                            burst = *level;
+                            element = self.game_data.get_skill_element(*id).ok().copied();
+                        }
                     }
                 }
 
@@ -153,8 +157,18 @@ impl PlayerData {
                     return None;
                 }
 
+                // The Traveler is the only character that can change elements.
+                // The GOOD format lets you optionally suffix the Traveler's
+                // name with their element (e.g. `TravelerCryo`).
+                let mut key = good::to_good_key(name);
+                if key == good::TRAVELER_KEY
+                    && let Some(element) = element
+                {
+                    key.push_str(element.as_ref());
+                }
+
                 Some(good::Character {
-                    key: good::to_good_key(name),
+                    key,
                     level,
                     constellation,
                     ascension,
