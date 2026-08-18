@@ -110,10 +110,19 @@ impl PlayerData {
         &self,
         settings: &ExportSettings,
     ) -> Vec<good::Character> {
+        // TPS avatars are not normal characters and are excluded from export.
+        let tps_avatar_ids: Vec<u32> = [
+            self.game_data.get_tps_avatar_id_female(),
+            self.game_data.get_tps_avatar_id_male(),
+        ]
+        .into_iter()
+        .filter_map(Result::ok)
+        .collect();
+
         self.characters
             .iter()
             .filter_map(|character| {
-                if character.avatar_type != 1 {
+                if character.avatar_type != 1 || tps_avatar_ids.contains(&character.avatar_id) {
                     return None;
                 }
 
