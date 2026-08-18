@@ -145,12 +145,15 @@ fn show_packet_capture_permissions_missing_dialog() {
                 ui.vertical_centered(|ui| {
                     ui.label("How to grant packet capture permissions:");
                     ui.add_space(5.0);
-                    ui.label("1. Grant CAP_NET_RAW to Irminsul (after every update):");
-                    ui.label(format!(
-                        "{} && '{}'",
-                        setcap_command(&exe_path),
-                        exe_path
-                    ));
+                    #[cfg(target_os = "linux")]
+                    {
+                        ui.label("1. Grant CAP_NET_RAW to Irminsul (after every update):");
+                        ui.label(format!(
+                            "{} && '{}'",
+                            setcap_command(&exe_path),
+                            exe_path
+                        ));
+                    }
 
                     #[cfg(target_os = "macos")]
                     {
