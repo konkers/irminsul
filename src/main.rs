@@ -20,6 +20,7 @@ mod capture;
 mod good;
 mod monitor;
 mod player_data;
+mod uiaf;
 mod update;
 mod wish;
 
@@ -48,6 +49,8 @@ pub enum State {
     Main,
 }
 
+pub use app::AchievementFormat;
+
 #[derive(Debug)]
 pub enum Message {
     UpdateAcknowledged,
@@ -56,6 +59,7 @@ pub enum Message {
     StartCapture,
     StopCapture,
     ExportGenshinOptimizer(ExportSettings, oneshot::Sender<Result<String>>),
+    ExportAchievements(AchievementFormat, oneshot::Sender<Result<String>>),
 }
 
 #[derive(Clone, Debug)]
