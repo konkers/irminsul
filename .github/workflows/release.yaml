@@ -31,7 +31,7 @@ jobs:
           toml set Cargo.toml package.version ${{inputs.nextVersion}} > Cargo.toml.new
           rm Cargo.toml
           mv Cargo.toml.new Cargo.toml
-          cargo generate-lockfile
+          cargo update --package irminsul
       - name: Commit version bump locally
         id: bump
         run: |
