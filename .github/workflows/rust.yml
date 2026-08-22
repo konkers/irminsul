@@ -51,13 +51,13 @@ jobs:
           curl https://npcap.com/dist/npcap-sdk-1.15.zip -o sdk.zip
           unzip sdk.zip
       - run: rustup component add clippy
-      - run: cargo check --release ${{ matrix.rust_features }}
+      - run: cargo check --release ${{ matrix.rust_features }} --locked
       - run: cargo fmt --check
-      - run: cargo test --release ${{ matrix.rust_features }}
+      - run: cargo test --release ${{ matrix.rust_features }} --locked
         env:
           LIB: ${{ github.workspace }}/Lib/x64/
-      - run: cargo clippy --release ${{ matrix.rust_features }} -- -Dwarnings
-      - run: cargo build --release ${{ matrix.rust_features }}
+      - run: cargo clippy --release ${{ matrix.rust_features }} --locked -- -Dwarnings
+      - run: cargo build --release ${{ matrix.rust_features }} --locked
         env:
           LIB: ${{ github.workspace }}/Lib/x64/
       - if: ${{matrix.artifact_name}}
