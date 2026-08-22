@@ -77,7 +77,7 @@ jobs:
         run: |
           git fetch bump.bundle HEAD:refs/heads/release-bump
           git checkout ${{ needs.prepare.outputs.sha }}
-      - run: cargo build --release
+      - run: cargo build --release --locked
       - name: Copy binary with platform suffix
         # irminsul-legacy-x64.exe exists purely to be the first asset in the
         # release.  Updaters up to 0.1.19 match assets against an empty target
@@ -120,7 +120,7 @@ jobs:
         run: |
           git fetch bump.bundle HEAD:refs/heads/release-bump
           git checkout ${{ needs.prepare.outputs.sha }}
-      - run: cargo build --release --features pcap,static-libpcap
+      - run: cargo build --release --features pcap,static-libpcap --locked
       - name: Copy binary with platform suffix
         run: |
           cp target/release/irminsul target/release/irminsul-linux-x64
@@ -152,7 +152,7 @@ jobs:
         run: |
           git fetch bump.bundle HEAD:refs/heads/release-bump
           git checkout ${{ needs.prepare.outputs.sha }}
-      - run: cargo build --release --features pcap
+      - run: cargo build --release --features pcap --locked
       - name: Copy binary with platform suffix
         run: cp target/release/irminsul target/release/irminsul-macos-arm64
       - uses: actions/upload-artifact@v6
