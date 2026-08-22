@@ -195,7 +195,7 @@ async fn get_web_cache_dir(data_dir: PathBuf) -> Result<PathBuf> {
 async fn validate_url(url: &str) -> Result<()> {
     let url = Url::parse_with_params(
         url,
-        &[
+        [
             ("lang", "en"),
             ("gacha_type", "301"),
             ("size", "5"),
