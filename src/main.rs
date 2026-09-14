@@ -25,6 +25,16 @@ mod wish;
 
 const APP_ID: &str = "Irminsul";
 
+/// Every HTTP client goes through rustls with the bundled roots rather than
+/// the platform TLS stack.  Both are compiled in (self_update pulls in
+/// rustls), and reqwest picks the platform one unless told otherwise.  On
+/// Windows that is schannel, which validates certificates through crypt32
+/// and so loads any third-party crypto provider hooked into it; a buggy one
+/// (Avest CSP's AvSSPc.dll) access-violates and takes the process down.
+pub fn http_client() -> reqwest::ClientBuilder {
+    reqwest::Client::builder().use_rustls_tls()
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum ConfirmationType {
     Initial,

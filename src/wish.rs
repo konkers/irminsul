@@ -208,7 +208,14 @@ async fn validate_url(url: &str) -> Result<()> {
         retcode: i32,
     }
 
-    let response: Response = reqwest::get(url).await?.error_for_status()?.json().await?;
+    let response: Response = crate::http_client()
+        .build()?
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
     if response.retcode != 0 {
         return Err(anyhow!("error code: {}", response.retcode));
     }

@@ -124,7 +124,7 @@ async fn download_new_version_and_replace_current(release: Release) -> Result<bo
     let tmp_exe_path = tmp_dir.path().join(&asset.name);
     let mut tmp_exe = ::std::fs::File::create(&tmp_exe_path)?;
 
-    let client = reqwest::Client::builder().gzip(true).build()?;
+    let client = crate::http_client().gzip(true).build()?;
 
     #[derive(Deserialize)]
     struct DownloadMetadata {

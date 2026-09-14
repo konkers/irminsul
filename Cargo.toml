@@ -51,7 +51,7 @@ notify = "5.2.0"
 open = "5.3.2"
 pcap = { version = "2.3.0", features = ["capture-stream"], optional = true }
 regex = "1.11.2"
-reqwest = { version = "0.12.23", features = ["gzip", "stream"] }
+reqwest = { version = "0.12.23", features = ["gzip", "rustls-tls", "stream"] }
 self_update = "0.42.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = { version = "1.0.143", features = ["alloc"] }
