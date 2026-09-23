@@ -25,7 +25,7 @@ pub struct Artifact {
     // GOOD v3 fields.
     pub total_rolls: u32,
     pub astral_mark: bool,
-    pub elixer_crafted: bool,
+    pub elixir_crafted: bool,
     pub unactivated_substats: Vec<Substat>,
 }
 

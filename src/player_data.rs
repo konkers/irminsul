@@ -249,7 +249,7 @@ impl PlayerData {
                 let level = artifact.level - 1;
                 let rarity = artifact_data.rarity;
                 let astral_mark = artifact.starred;
-                let elixer_crafted = !artifact.elixer_choices.is_empty();
+                let elixir_crafted = !artifact.elixer_choices.is_empty();
                 let main_stat_key = self
                     .game_data
                     .get_property(artifact.main_prop_id)
@@ -272,7 +272,7 @@ impl PlayerData {
                     substats,
                     total_rolls,
                     astral_mark,
-                    elixer_crafted,
+                    elixir_crafted,
                     unactivated_substats,
                 })
             })
