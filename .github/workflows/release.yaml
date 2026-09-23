@@ -22,7 +22,7 @@ jobs:
           # Disable shallow cloning as creating git bundles from a shollow clone
           # is a relatively new feature.
           fetch-depth: 0
-      - run: cargo install toml-cli
+      - run: cargo +stable install toml-cli
 
       - name: Update Cargo.toml with new version
         # toml-cli does not support in place editing so the output is directed to
