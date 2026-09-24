@@ -63,6 +63,7 @@ pub struct DataUpdated {
     achievements_updated: Option<Instant>,
     characters_updated: Option<Instant>,
     items_updated: Option<Instant>,
+    mora_updated: Option<Instant>,
 }
 
 impl DataUpdated {
@@ -71,6 +72,7 @@ impl DataUpdated {
             achievements_updated: None,
             characters_updated: None,
             items_updated: None,
+            mora_updated: None,
         }
     }
 }
