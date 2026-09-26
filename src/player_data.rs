@@ -16,6 +16,8 @@ pub struct ExportSettings {
     pub include_weapons: bool,
     pub include_materials: bool,
     pub fake_initialize_4th_line: bool,
+    #[serde(default)]
+    pub include_roll_ids: bool,
 
     pub min_character_level: u32,
     pub min_character_ascension: u32,
@@ -274,6 +276,9 @@ impl PlayerData {
                     astral_mark,
                     elixir_crafted,
                     unactivated_substats,
+                    append_prop_id_list: settings
+                        .include_roll_ids
+                        .then(|| artifact.append_prop_id_list.clone()),
                 })
             })
             .collect()

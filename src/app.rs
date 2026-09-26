@@ -43,6 +43,7 @@ impl Default for SavedAppState {
                 include_weapons: true,
                 include_materials: true,
                 fake_initialize_4th_line: false,
+                include_roll_ids: false,
                 min_character_level: 1,
                 min_character_ascension: 0,
                 min_character_constellation: 0,
@@ -884,6 +885,13 @@ impl IrminsulApp {
             "Fake level-up 5* artifacts with unactivated stats (hover for more info)"
         ).on_hover_text(
             "Genshin Optimizer still internally treats 5* 3-liners like pre-6.0, where the new stat is \"hidden\" and unknown to GO's optimizer.\nThis is a temporary workaround by activating that last stat line, but to prevent unintended effects, the artifacts are set to level 4, mimicking the player leveling it up.\nThe last line *should* be the unlockable 4th line."
+        );
+        ui.checkbox(
+            &mut self.saved_state.export_settings.include_roll_ids,
+            "Include artifact roll IDs (hover for more info)",
+        )
+        .on_hover_text(
+            "Adds appendPropIdList to each artifact: the game's ID for every roll, in order, which GOOD does not include.\nEach ID is an entry in ReliquaryAffixExcelConfigData.",
         );
         ui.separator();
         egui::Sides::new().show(
