@@ -566,6 +566,7 @@ impl IrminsulApp {
                 Self::data_state(ui, "Items", app_state.updated.items_updated);
                 Self::data_state(ui, "Characters", app_state.updated.characters_updated);
                 Self::data_state(ui, "Achievements", app_state.updated.achievements_updated);
+                Self::data_state(ui, "Mora", app_state.updated.mora_updated);
             });
     }
 

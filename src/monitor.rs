@@ -7,7 +7,7 @@ use anime_game_data::AnimeGameData;
 use anyhow::{Context, Result, anyhow};
 use auto_artifactarium::{
     GameCommand, GamePacket, GameSniffer, matches_achievement_packet, matches_avatar_packet,
-    matches_item_packet,
+    matches_item_packet, matches_player_data_packet,
 };
 use base64::prelude::*;
 use chrono::prelude::*;
@@ -16,7 +16,7 @@ use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
 use crate::capture::{BackendType, create_capture};
-use crate::player_data::PlayerData;
+use crate::player_data::{PROP_PLAYER_SCOIN, PlayerData};
 use crate::{APP_ID, AppState, DataUpdated, Message, State};
 
 struct AppStateManager {
@@ -158,6 +158,15 @@ impl Monitor {
                 tracing::info!("Found avatar packet with {} avatars", avatars.len());
                 self.player_data.process_characters(&avatars);
                 updated.characters_updated = Some(Instant::now());
+                has_new_data = true;
+            } else if let Some(props) = matches_player_data_packet(&command) {
+                tracing::info!("Found player data packet with {} props", props.len());
+                // PlayerPropNotify only carries changed props, so only tick Mora
+                // when this packet actually contains the balance.
+                if props.contains_key(&PROP_PLAYER_SCOIN) {
+                    updated.mora_updated = Some(Instant::now());
+                }
+                self.player_data.process_player_props(props);
                 has_new_data = true;
             } else if let Some(achievements) = matches_achievement_packet(&command) {
                 tracing::info!(
