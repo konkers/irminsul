@@ -27,6 +27,10 @@ pub struct Artifact {
     pub astral_mark: bool,
     pub elixir_crafted: bool,
     pub unactivated_substats: Vec<Substat>,
+
+    // Not part of GOOD: the game's roll IDs, only when enabled in the export settings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub append_prop_id_list: Option<Vec<u32>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -104,4 +108,37 @@ pub fn fake_uninitialized_4th_line(artifacts: Vec<Artifact>) -> Vec<Artifact> {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn artifact(append_prop_id_list: Option<Vec<u32>>) -> Artifact {
+        Artifact {
+            set_key: "ScarletProof".to_string(),
+            slot_key: "plume".to_string(),
+            level: 0,
+            rarity: 5,
+            main_stat_key: "atk".to_string(),
+            location: String::new(),
+            lock: false,
+            substats: Vec::new(),
+            total_rolls: 0,
+            astral_mark: false,
+            elixir_crafted: false,
+            unactivated_substats: Vec::new(),
+            append_prop_id_list,
+        }
+    }
+
+    #[test]
+    fn roll_ids_are_exported_only_when_included() {
+        let plain = serde_json::to_value(artifact(None)).unwrap();
+        assert!(plain.get("appendPropIdList").is_none());
+
+        let ids = vec![501093, 501092, 501093];
+        let raw = serde_json::to_value(artifact(Some(ids.clone()))).unwrap();
+        assert_eq!(raw["appendPropIdList"], serde_json::json!(ids));
+    }
 }
