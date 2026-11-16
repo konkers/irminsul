@@ -179,6 +179,7 @@ fn main() -> eframe::Result {
             .with_inner_size(background_image_size.map(|v| v * 0.5))
             .with_resizable(false)
             .with_decorations(false)
+            .with_app_id("konkers.irminsul")
             .with_icon(
                 // NOTE: Adding an icon is optional
                 eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
